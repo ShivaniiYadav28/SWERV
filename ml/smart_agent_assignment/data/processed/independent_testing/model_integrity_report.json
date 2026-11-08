@@ -1,0 +1,10 @@
+{
+  "model_artifact": "C:\\project-dev\\swerv\\ml\\smart_agent_assignment\\models\\synthetic\\gradient_boosting.joblib",
+  "expected_model_version": "gradient_boosting-synthetic-c22e749e234e",
+  "loaded_model_version": "gradient_boosting-synthetic-c22e749e234e",
+  "model_sha256_before": "c22e749e234e1de59575c01b43f4422ba90734d7a95bdd81e13e39dfdf22a528",
+  "model_sha256_after": "c22e749e234e1de59575c01b43f4422ba90734d7a95bdd81e13e39dfdf22a528",
+  "model_unchanged": true,
+  "training_source": "synthetic",
+  "model_retrained": false
+}

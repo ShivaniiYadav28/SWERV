@@ -1,0 +1,35 @@
+{
+  "training_source": "synthetic",
+  "synthetic_only": true,
+  "real_world_accuracy_validated": false,
+  "source_dataset": "C:\\project-dev\\swerv\\ml\\demand_forecasting\\data\\synthetic_hourly_demand.csv",
+  "source_dataset_sha256": "839a714fc8a3f8d2f858d4844fbd7076dcfdc51f4c5c140f09c8c862193fe110",
+  "source_row_count": 17544,
+  "featured_row_count": 17376,
+  "forecast_granularity": "hourly UTC request counts",
+  "model_version": "gradient_boosting-synthetic-a62c1700d5fb",
+  "selected_model": "gradient_boosting",
+  "selection_metric": "validation MAE",
+  "feature_columns": [
+    "hour_of_day",
+    "day_of_week",
+    "month",
+    "is_weekend",
+    "previous_hour_demand",
+    "previous_day_same_hour_demand",
+    "previous_week_same_hour_demand",
+    "previous_24_hour_average"
+  ],
+  "created_at_utc": "2026-11-07T17:31:05.793127+00:00",
+  "final_test_rows": 2607,
+  "final_model_training_rows": 14769,
+  "final_test_start_utc": "2025-09-14T09:00:00+00:00",
+  "final_test_end_utc": "2025-12-31T23:00:00+00:00",
+  "final_test_metrics": {
+    "mae": 1.0726689818557635,
+    "rmse": 1.4961252275453756,
+    "r2": 0.3736690836143106
+  },
+  "test_used_for_model_selection": false,
+  "model_artifact": "C:\\project-dev\\swerv\\ml\\demand_forecasting\\models\\synthetic\\best_demand_model.joblib"
+}

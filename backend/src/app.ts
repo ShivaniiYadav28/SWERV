@@ -1,0 +1,42 @@
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import express from 'express';
+import helmet from 'helmet';
+import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import adminRoutes from './routes/adminRoutes.js';
+import authRoutes from './routes/authRoutes.js';
+import agentRoutes from './routes/agentRoutes.js';
+import dispatchRequestRoutes from './routes/dispatchRequestRoutes.js';
+import dispatchAnalyticsRoutes from './routes/dispatchAnalyticsRoutes.js';
+import healthRoutes from './routes/healthRoutes.js';
+import customerRoutes from './routes/customerRoutes.js';
+import agentLocationRoutes from './routes/agentLocationRoutes.js';
+import agentDeliveryRoutes from './routes/agentDeliveryRoutes.js';
+import publicTrackingRoutes from './routes/publicTrackingRoutes.js';
+import demandForecastingRoutes from './routes/demandForecastingRoutes.js';
+import anomalyDetectionRoutes from './routes/anomalyDetectionRoutes.js';
+
+const app = express();
+const allowedOrigin = process.env.CLIENT_URL ?? 'http://localhost:5173';
+
+app.use(helmet());
+app.use(cors({ origin: allowedOrigin, credentials: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(cookieParser());
+
+app.use('/api/health', healthRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/agents', agentRoutes);
+app.use('/api/agent', agentDeliveryRoutes);
+app.use('/api/agent-locations', agentLocationRoutes);
+app.use('/api/public', publicTrackingRoutes);
+app.use('/api/dispatch-requests', dispatchRequestRoutes);
+app.use('/api/dispatch-analytics', dispatchAnalyticsRoutes);
+app.use('/api/demand-forecasting', demandForecastingRoutes);
+app.use('/api/anomaly-detection', anomalyDetectionRoutes);
+app.use('/api/customers', customerRoutes);
+app.use('/api/admin', adminRoutes);
+app.use(notFoundHandler);
+app.use(errorHandler);
+
+export default app;

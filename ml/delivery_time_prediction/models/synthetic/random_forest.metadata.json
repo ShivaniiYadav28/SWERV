@@ -1,0 +1,46 @@
+{
+  "training_source": "synthetic",
+  "model_name": "random_forest",
+  "model_version": "random_forest-synthetic-44031602667c",
+  "artifact_sha256": "44031602667c41a7d31d1cb165aa86f9a32ab7cf000dbfe5168e977c51b662e2",
+  "training_dataset": "C:\\project-dev\\swerv\\ml\\delivery_time_prediction\\data\\processed\\synthetic_delivery_time_dataset.csv",
+  "dataset_rows": 10000,
+  "training_rows": 8000,
+  "test_rows": 2000,
+  "raw_feature_columns": [
+    "request_created_at",
+    "assigned_at",
+    "priority",
+    "package_category",
+    "weight_kg",
+    "quantity",
+    "pickup_latitude",
+    "pickup_longitude",
+    "destination_latitude",
+    "destination_longitude",
+    "straight_line_distance_km"
+  ],
+  "engineered_feature_columns": [
+    "priority",
+    "package_category",
+    "request_to_assignment_minutes",
+    "request_created_hour",
+    "request_created_day_of_week",
+    "assigned_hour",
+    "assigned_day_of_week",
+    "weight_kg",
+    "quantity",
+    "pickup_latitude",
+    "pickup_longitude",
+    "destination_latitude",
+    "destination_longitude",
+    "straight_line_distance_km"
+  ],
+  "target_column": "delivery_duration_minutes",
+  "metrics": {
+    "mae_minutes": 6.772919507889102,
+    "rmse_minutes": 9.127624462989138,
+    "r2": 0.8919044013340306
+  },
+  "real_world_accuracy_validated": false
+}

@@ -1,0 +1,43 @@
+.agent-gps-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 17px;
+  padding: 13px 14px;
+  background: hsl(var(--card));
+  border: 1px solid #343035;
+  border-radius: 9px;
+}
+.agent-gps-card.gps-active { border-color: #3c5747; background: linear-gradient(110deg, #202722, #1c1b1e 60%); }
+.agent-gps-card.gps-unavailable { border-color: #5a4335; background: linear-gradient(110deg, #28231f, #1c1b1e 60%); }
+.agent-gps-card.gps-permission-required { border-color: #57403d; }
+.agent-gps-icon { width: 35px; height: 35px; flex: 0 0 auto; display: grid; place-items: center; background: #2b292e; border: 1px solid #3a363e; border-radius: 9px; }
+.agent-gps-icon i, .agent-gps-compact i { width: 8px; height: 8px; display: block; border-radius: 50%; background: #827a85; }
+.gps-active .agent-gps-icon i, .agent-gps-compact.gps-active i { background: #72bd91; box-shadow: 0 0 0 4px #72bd911c; }
+.gps-unavailable .agent-gps-icon i, .agent-gps-compact.gps-unavailable i { background: #d69a6f; box-shadow: 0 0 0 4px #d69a6f1c; }
+.gps-permission-required .agent-gps-icon i, .agent-gps-compact.gps-permission-required i { background: #de8d7e; box-shadow: 0 0 0 4px #de8d7e1c; }
+.agent-gps-copy { min-width: 0; flex: 1; }
+.agent-gps-title-row { display: flex; align-items: center; gap: 8px; }
+.agent-gps-title-row > strong { color: #e6dfe1; font-size: 10px; font-weight: 650; }
+.agent-gps-copy p { margin: 4px 0 0; color: #8f8890; font-size: 9px; line-height: 1.5; }
+.agent-gps-copy small { display: block; margin-top: 4px; color: #7f9d89; font-size: 8px; }
+.agent-gps-state-tag { border-radius: 12px; padding: 3px 6px; color: #a49ca5; background: #2a272c; font-size: 7px; font-weight: 700; letter-spacing: .4px; }
+.agent-gps-state-tag.gps-active { color: #8bcca3; background: #24342b; }
+.agent-gps-state-tag.gps-unavailable { color: #ddb080; background: #352b22; }
+.agent-gps-state-tag.gps-permission-required { color: #e2a39a; background: #372729; }
+.agent-gps-button { min-height: 34px; flex: 0 0 auto; padding: 0 10px; color: #fff; background: #bd6257; border: 1px solid #cf7669; border-radius: 6px; cursor: pointer; font-size: 9px; font-weight: 650; }
+.agent-gps-button:hover:not(:disabled) { background: #cf7063; }
+.agent-gps-button.is-stop { color: #c8c0c5; background: #282529; border-color: #49424b; }
+.agent-gps-button.is-stop:hover:not(:disabled) { color: #f0a69c; border-color: #744a47; }
+.agent-gps-button:disabled { cursor: not-allowed; opacity: .55; }
+.agent-gps-compact { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; color: #aaa2aa; background: #211f22; border: 1px solid #38343b; border-radius: 18px; font-size: 8px; white-space: nowrap; }
+.agent-gps-compact i { width: 6px; height: 6px; }
+.agent-gps-compact strong { font-weight: 650; }
+@media (max-width: 700px) {
+  .agent-gps-card { align-items: flex-start; gap: 9px; padding: 11px; }
+  .agent-gps-icon { width: 31px; height: 31px; }
+  .agent-gps-title-row { flex-wrap: wrap; gap: 5px; }
+  .agent-gps-title-row > strong { font-size: 9px; }
+  .agent-gps-copy p { font-size: 8px; }
+  .agent-gps-button { min-height: 31px; padding: 0 8px; font-size: 8px; }
+}

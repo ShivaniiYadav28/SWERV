@@ -1,0 +1,338 @@
+.demand-content {
+  display: grid;
+  gap: 16px;
+}
+
+.demand-warning,
+.demand-controls,
+.demand-summary-card,
+.demand-chart-panel,
+.peak-hours-panel,
+.demand-state {
+  border: 1px solid #302e32;
+  border-radius: 10px;
+  background: #1c1b1e;
+}
+
+.demand-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 15px 17px;
+  border-color: #685148;
+  background: #29211f;
+  color: #e4b183;
+}
+
+.demand-warning > svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: #d4a071;
+}
+
+.demand-warning strong {
+  color: #f0c79e;
+  font-size: 12px;
+}
+
+.demand-warning p,
+.demand-controls p,
+.demand-state p,
+.demand-chart-note {
+  margin: 5px 0 0;
+  color: #aaa3aa;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.demand-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+}
+
+.demand-controls label {
+  color: #eee8eb;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.demand-controls select {
+  min-width: 150px;
+  border: 1px solid #49444a;
+  border-radius: 7px;
+  background: #242226;
+  color: #f2ecef;
+  padding: 9px 11px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.demand-state {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  padding: 20px;
+  color: #dfd8dc;
+}
+
+.demand-state h2 {
+  margin: 0;
+  color: #f1ebee;
+  font-size: 15px;
+}
+
+.demand-state .spinner {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.demand-empty > svg {
+  flex: 0 0 auto;
+  color: #cd8277;
+}
+
+.demand-error {
+  align-items: center;
+  justify-content: space-between;
+  border-color: #674444;
+}
+
+.demand-secondary-button {
+  flex: 0 0 auto;
+  border: 1px solid #695051;
+  border-radius: 7px;
+  background: #302426;
+  color: #f0c0b8;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.demand-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.demand-summary-card {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  padding: 15px;
+}
+
+.demand-summary-card > span {
+  color: #aaa3aa;
+  font-size: 10px;
+}
+
+.demand-summary-card > strong {
+  color: #f3ecef;
+  font-size: 24px;
+  font-weight: 650;
+}
+
+.demand-summary-card small {
+  color: #858088;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.demand-summary-card .demand-model-version {
+  overflow-wrap: anywhere;
+  color: #e4a49a;
+  font-size: 12px;
+}
+
+.demand-chart-panel,
+.peak-hours-panel {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.demand-chart-panel .panel-heading,
+.peak-hours-panel .panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 15px 16px 12px;
+}
+
+.demand-chart-panel .panel-heading h2,
+.peak-hours-panel .panel-heading h2 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  color: #e9e2e6;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.demand-chart-panel .panel-heading h2 svg,
+.peak-hours-panel .panel-heading h2 svg {
+  color: #c77a70;
+}
+
+.demand-chart-panel .panel-heading p,
+.peak-hours-panel .panel-heading p {
+  margin: 5px 0 0;
+  color: #858088;
+  font-size: 9px;
+}
+
+.demand-chart-panel .panel-heading > span {
+  color: #aaa3aa;
+  font-size: 10px;
+}
+
+.hourly-demand-chart {
+  height: 230px;
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 6px 16px 12px;
+}
+
+.hourly-demand-column {
+  flex: 1 0 24px;
+  min-width: 24px;
+  display: grid;
+  grid-template-rows: 15px minmax(0, 1fr) 28px;
+  justify-items: center;
+  gap: 5px;
+  color: #858088;
+  font-size: 8px;
+}
+
+.hourly-demand-column > strong,
+.daily-demand-column > strong {
+  color: #c9c1c6;
+  font-size: 8px;
+  font-weight: 550;
+}
+
+.hourly-demand-bar-track,
+.daily-demand-bar-track {
+  width: min(22px, 75%);
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  border-bottom: 1px solid #39343a;
+}
+
+.hourly-demand-bar,
+.daily-demand-bar {
+  width: 100%;
+  min-height: 0;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, #df8b7e, #a9544c);
+}
+
+.hourly-demand-bar.peak {
+  background: linear-gradient(180deg, #f1b099, #d36d62);
+  box-shadow: 0 0 8px #d36d6255;
+}
+
+.hourly-demand-column small {
+  max-width: 44px;
+  overflow: hidden;
+  color: #858088;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.demand-chart-note {
+  padding: 0 16px 14px;
+}
+
+.demand-lower-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(230px, 0.8fr);
+  gap: 12px;
+}
+
+.daily-demand-chart {
+  min-height: 180px;
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  padding: 4px 18px 15px;
+}
+
+.daily-demand-column {
+  flex: 1 1 0;
+  min-width: 30px;
+  display: grid;
+  grid-template-rows: 15px minmax(70px, 1fr) 16px;
+  justify-items: center;
+  gap: 6px;
+  color: #858088;
+  font-size: 9px;
+}
+
+.daily-demand-bar-track {
+  width: min(32px, 70%);
+}
+
+.peak-hours-panel ol {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0 16px 10px;
+  list-style: none;
+}
+
+.peak-hours-panel li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid #302e32;
+  padding: 11px 0;
+  color: #aaa3aa;
+  font-size: 10px;
+}
+
+.peak-hours-panel li strong {
+  color: #e5a297;
+  white-space: nowrap;
+}
+
+.demand-provenance {
+  margin: 0;
+  color: #837d85;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+@media (max-width: 760px) {
+  .demand-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .demand-lower-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .demand-controls,
+  .demand-error {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .demand-controls select {
+    width: 100%;
+  }
+
+  .demand-error .demand-secondary-button {
+    align-self: flex-start;
+  }
+}

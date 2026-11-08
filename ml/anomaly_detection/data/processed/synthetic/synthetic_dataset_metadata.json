@@ -1,0 +1,114 @@
+{
+  "data_source": "synthetic",
+  "synthetic_only": true,
+  "real_world_accuracy_claim": false,
+  "seed_note": "Each split is generated independently with a separate random seed.",
+  "split_files": {
+    "train": "synthetic_train.csv",
+    "validation": "synthetic_validation.csv",
+    "test": "synthetic_test.csv",
+    "demo": "synthetic_demo.csv"
+  },
+  "feature_columns": [
+    "gps_distance_km",
+    "gps_interval_minutes",
+    "implied_speed_kmh",
+    "gps_reported_speed_kmh",
+    "gps_accuracy_meters",
+    "gps_freshness_minutes",
+    "gps_coordinates_valid",
+    "gps_timestamps_valid",
+    "gps_pair_available",
+    "reassignment_count",
+    "assignment_event_count",
+    "activity_history_complete",
+    "delivery_duration_minutes",
+    "status_event_count",
+    "status_transition_valid",
+    "agent_status_change_count",
+    "agent_active_workload",
+    "dispatch_creation_hour",
+    "data_quality_issue_count",
+    "priority",
+    "package_category",
+    "vehicle_type"
+  ],
+  "label_columns": [
+    "is_anomaly",
+    "anomaly_type"
+  ],
+  "scenario_id_is_a_model_feature": false,
+  "scenario_splitting": "Each scenario ID appears in exactly one split.",
+  "anomaly_weights": {
+    "normal": 0.72,
+    "gps_implausible_jump": 0.06,
+    "gps_invalid_coordinates": 0.04,
+    "gps_stale_update": 0.05,
+    "repeated_dispatch_reassignment": 0.05,
+    "unusual_delivery_duration": 0.05,
+    "invalid_status_transition": 0.03
+  },
+  "summary": {
+    "train": {
+      "rows": 7000,
+      "normal_rows": 5145,
+      "anomaly_rows": 1855,
+      "anomaly_type_counts": {
+        "gps_implausible_jump": 390,
+        "gps_invalid_coordinates": 286,
+        "gps_stale_update": 329,
+        "invalid_status_transition": 205,
+        "normal": 5145,
+        "repeated_dispatch_reassignment": 332,
+        "unusual_delivery_duration": 313
+      }
+    },
+    "validation": {
+      "rows": 1500,
+      "normal_rows": 1074,
+      "anomaly_rows": 426,
+      "anomaly_type_counts": {
+        "gps_implausible_jump": 93,
+        "gps_invalid_coordinates": 64,
+        "gps_stale_update": 81,
+        "invalid_status_transition": 31,
+        "normal": 1074,
+        "repeated_dispatch_reassignment": 84,
+        "unusual_delivery_duration": 73
+      }
+    },
+    "test": {
+      "rows": 1500,
+      "normal_rows": 1088,
+      "anomaly_rows": 412,
+      "anomaly_type_counts": {
+        "gps_implausible_jump": 87,
+        "gps_invalid_coordinates": 50,
+        "gps_stale_update": 79,
+        "invalid_status_transition": 44,
+        "normal": 1088,
+        "repeated_dispatch_reassignment": 80,
+        "unusual_delivery_duration": 72
+      }
+    },
+    "demo": {
+      "rows": 700,
+      "normal_rows": 486,
+      "anomaly_rows": 214,
+      "anomaly_type_counts": {
+        "gps_implausible_jump": 38,
+        "gps_invalid_coordinates": 32,
+        "gps_stale_update": 41,
+        "invalid_status_transition": 26,
+        "normal": 486,
+        "repeated_dispatch_reassignment": 34,
+        "unusual_delivery_duration": 43
+      }
+    }
+  },
+  "generation_notes": [
+    "Synthetic operational ranges are illustrative, not learned from SWERV history.",
+    "Normal rows include borderline durations, GPS accuracy, workloads, priorities, and missing GPS pairs.",
+    "Anomaly categories are labels for synthetic scenarios, not confirmed SWERV incidents."
+  ]
+}

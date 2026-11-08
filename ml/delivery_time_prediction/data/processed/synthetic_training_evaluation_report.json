@@ -1,0 +1,85 @@
+{
+  "status": "exploratory_evaluation_complete",
+  "usable_rows": 10000,
+  "invalid_target_or_time_rows_excluded": 0,
+  "minimum_rows_required": 200,
+  "minimum_chronological_test_rows": 40,
+  "target_column": "delivery_duration_minutes",
+  "metrics": {
+    "linear_regression": {
+      "mae_minutes": 8.713126585391125,
+      "rmse_minutes": 11.555988044625153,
+      "r2": 0.8267366721543841
+    },
+    "random_forest": {
+      "mae_minutes": 6.772919507889102,
+      "rmse_minutes": 9.127624462989138,
+      "r2": 0.8919044013340306
+    },
+    "gradient_boosting": {
+      "mae_minutes": 6.292422823562138,
+      "rmse_minutes": 8.442812076245845,
+      "r2": 0.9075159735635069
+    }
+  },
+  "artifacts_saved": [
+    "C:\\project-dev\\swerv\\ml\\delivery_time_prediction\\models\\synthetic\\linear_regression.joblib",
+    "C:\\project-dev\\swerv\\ml\\delivery_time_prediction\\models\\synthetic\\random_forest.joblib",
+    "C:\\project-dev\\swerv\\ml\\delivery_time_prediction\\models\\synthetic\\gradient_boosting.joblib"
+  ],
+  "performance_claimed_reliable": false,
+  "training_rows": 8000,
+  "test_rows": 2000,
+  "missing_feature_values": {
+    "priority": 0,
+    "package_category": 0,
+    "request_to_assignment_minutes": 0,
+    "request_created_hour": 0,
+    "request_created_day_of_week": 0,
+    "assigned_hour": 0,
+    "assigned_day_of_week": 0,
+    "weight_kg": 0,
+    "quantity": 0,
+    "pickup_latitude": 0,
+    "pickup_longitude": 0,
+    "destination_latitude": 0,
+    "destination_longitude": 0,
+    "straight_line_distance_km": 0
+  },
+  "reliability_note": "This prototype was trained on generated synthetic records. These metrics do not establish accuracy on real SWERV deliveries.",
+  "data_source": "synthetic",
+  "training_dataset": "C:\\project-dev\\swerv\\ml\\delivery_time_prediction\\data\\processed\\synthetic_delivery_time_dataset.csv",
+  "dataset_rows": 10000,
+  "feature_columns": [
+    "priority",
+    "package_category",
+    "request_to_assignment_minutes",
+    "request_created_hour",
+    "request_created_day_of_week",
+    "assigned_hour",
+    "assigned_day_of_week",
+    "weight_kg",
+    "quantity",
+    "pickup_latitude",
+    "pickup_longitude",
+    "destination_latitude",
+    "destination_longitude",
+    "straight_line_distance_km"
+  ],
+  "raw_feature_columns": [
+    "request_created_at",
+    "assigned_at",
+    "priority",
+    "package_category",
+    "weight_kg",
+    "quantity",
+    "pickup_latitude",
+    "pickup_longitude",
+    "destination_latitude",
+    "destination_longitude",
+    "straight_line_distance_km"
+  ],
+  "best_model_by_mae": "gradient_boosting",
+  "best_model_artifact": "C:\\project-dev\\swerv\\ml\\delivery_time_prediction\\models\\synthetic\\gradient_boosting.joblib",
+  "best_model_version": "gradient_boosting-synthetic-916a99cdc260"
+}

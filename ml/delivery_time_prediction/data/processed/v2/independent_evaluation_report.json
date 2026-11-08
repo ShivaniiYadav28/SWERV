@@ -1,0 +1,401 @@
+{
+  "status": "v2_final_independent_evaluation_complete",
+  "evaluation_type": "new synthetic independent test using the shared v2 target process; not real-world validation",
+  "data_source": "synthetic_v2_independent_test",
+  "seed": 31500303,
+  "records": 2000,
+  "dataset_path": "C:\\project-dev\\swerv\\ml\\delivery_time_prediction\\data\\processed\\v2\\independent_test_dataset.csv",
+  "training_dataset_path": "C:\\project-dev\\swerv\\ml\\delivery_time_prediction\\data\\processed\\v2\\training_dataset.csv",
+  "validation_dataset_path": "C:\\project-dev\\swerv\\ml\\delivery_time_prediction\\data\\processed\\v2\\validation_dataset.csv",
+  "target_method": "src.v2_target.expected_delivery_duration",
+  "selected_model": "gradient_boosting",
+  "selected_parameters": {
+    "n_estimators": 180,
+    "learning_rate": 0.04,
+    "max_depth": 3,
+    "min_samples_leaf": 5
+  },
+  "model_artifact": "C:\\project-dev\\swerv\\ml\\delivery_time_prediction\\models\\v2\\gradient_boosting.joblib",
+  "model_version": "gradient_boosting-synthetic-2e7b05c087e5",
+  "training_provenance": "synthetic",
+  "training_validation_test_overlap": false,
+  "metrics": {
+    "mae_minutes": 12.86373670178039,
+    "rmse_minutes": 18.4541385786137,
+    "r2": 0.7905610144985699
+  },
+  "records_missing_coordinates": 133,
+  "missing_coordinate_metrics": {
+    "complete": {
+      "mae_minutes": 11.50605386959607,
+      "rmse_minutes": 15.910212808711117,
+      "r2": 0.8437374182948354
+    },
+    "missing_or_incomplete": {
+      "mae_minutes": 31.922337060337735,
+      "rmse_minutes": 39.594529132008155,
+      "r2": 0.08254291746591236
+    }
+  },
+  "error_groups": {
+    "distance": {
+      "0-5 km": {
+        "records": 72,
+        "mae_minutes": 4.712352029736555,
+        "rmse_minutes": 5.656719623862356,
+        "mean_signed_error_minutes": 3.103304313669947
+      },
+      "10-20 km": {
+        "records": 555,
+        "mae_minutes": 7.535579347634523,
+        "rmse_minutes": 9.701209289778662,
+        "mean_signed_error_minutes": -0.7866931861960818
+      },
+      "20-35 km": {
+        "records": 807,
+        "mae_minutes": 13.633700980623203,
+        "rmse_minutes": 17.195435253045503,
+        "mean_signed_error_minutes": -0.7479179803892649
+      },
+      "35-50 km": {
+        "records": 245,
+        "mae_minutes": 20.85117080636985,
+        "rmse_minutes": 26.547082372473938,
+        "mean_signed_error_minutes": 0.5947375763738275
+      },
+      "5-10 km": {
+        "records": 188,
+        "mae_minutes": 4.5177295294368465,
+        "rmse_minutes": 6.008243557546834,
+        "mean_signed_error_minutes": 0.34446150144666554
+      },
+      "distance_missing": {
+        "records": 133,
+        "mae_minutes": 31.922337060337735,
+        "rmse_minutes": 39.594529132008155,
+        "mean_signed_error_minutes": -2.968262984164721
+      }
+    },
+    "priority": {
+      "express": {
+        "records": 523,
+        "mae_minutes": 12.711513726197985,
+        "rmse_minutes": 18.464186661106613,
+        "mean_signed_error_minutes": -0.7195856960036988
+      },
+      "standard": {
+        "records": 1312,
+        "mae_minutes": 13.15327031504343,
+        "rmse_minutes": 18.85846834405925,
+        "mean_signed_error_minutes": -0.7979333398797438
+      },
+      "urgent": {
+        "records": 165,
+        "mae_minutes": 11.04400649346818,
+        "rmse_minutes": 14.812767992208457,
+        "mean_signed_error_minutes": 2.5586408157156697
+      }
+    },
+    "package_category": {
+      "documents": {
+        "records": 218,
+        "mae_minutes": 12.19053705836908,
+        "rmse_minutes": 17.803462039967208,
+        "mean_signed_error_minutes": 0.14684204729621808
+      },
+      "food": {
+        "records": 321,
+        "mae_minutes": 12.26398371662246,
+        "rmse_minutes": 18.274499118340547,
+        "mean_signed_error_minutes": -0.5361359997127445
+      },
+      "fragile": {
+        "records": 138,
+        "mae_minutes": 14.84292112751257,
+        "rmse_minutes": 22.180051227505004,
+        "mean_signed_error_minutes": -5.39993836087739
+      },
+      "heavy_goods": {
+        "records": 165,
+        "mae_minutes": 17.323208296816738,
+        "rmse_minutes": 23.784134988143663,
+        "mean_signed_error_minutes": -5.282490767739544
+      },
+      "other": {
+        "records": 117,
+        "mae_minutes": 12.484724812841971,
+        "rmse_minutes": 17.401354458884597,
+        "mean_signed_error_minutes": -1.2493211447936774
+      },
+      "parcel": {
+        "records": 1041,
+        "mae_minutes": 12.263047323848703,
+        "rmse_minutes": 17.205207584168882,
+        "mean_signed_error_minutes": 0.8664793541566834
+      }
+    },
+    "weight": {
+      "0-2 kg": {
+        "records": 342,
+        "mae_minutes": 12.694356991115658,
+        "rmse_minutes": 19.586450628204886,
+        "mean_signed_error_minutes": -1.206046153227625
+      },
+      "10-25 kg": {
+        "records": 782,
+        "mae_minutes": 12.661045973627106,
+        "rmse_minutes": 18.037694442231672,
+        "mean_signed_error_minutes": -0.5197588481458592
+      },
+      "2-10 kg": {
+        "records": 755,
+        "mae_minutes": 12.36851915471197,
+        "rmse_minutes": 17.484218181811894,
+        "mean_signed_error_minutes": 0.5164713707549878
+      },
+      "25-50 kg": {
+        "records": 41,
+        "mae_minutes": 19.35043000375403,
+        "rmse_minutes": 25.41885023037872,
+        "mean_signed_error_minutes": -6.429894482206556
+      },
+      "50+ kg": {
+        "records": 80,
+        "mae_minutes": 16.91832211576717,
+        "rmse_minutes": 21.8478552960271,
+        "mean_signed_error_minutes": -3.8555891729338803
+      }
+    },
+    "quantity": {
+      "1": {
+        "records": 405,
+        "mae_minutes": 12.399904142761187,
+        "rmse_minutes": 17.426743148034607,
+        "mean_signed_error_minutes": 0.47998368742729636
+      },
+      "2": {
+        "records": 403,
+        "mae_minutes": 12.903028982248532,
+        "rmse_minutes": 18.79446071876629,
+        "mean_signed_error_minutes": 0.07328562021616927
+      },
+      "3": {
+        "records": 420,
+        "mae_minutes": 13.412691522074285,
+        "rmse_minutes": 19.58981760868863,
+        "mean_signed_error_minutes": -1.0183616957734107
+      },
+      "4": {
+        "records": 397,
+        "mae_minutes": 11.775003641363588,
+        "rmse_minutes": 16.383542928106536,
+        "mean_signed_error_minutes": -0.024988414962801037
+      },
+      "5": {
+        "records": 375,
+        "mae_minutes": 13.860225762676787,
+        "rmse_minutes": 19.86759681894398,
+        "mean_signed_error_minutes": -2.0996034979444786
+      }
+    },
+    "coordinates": {
+      "complete": {
+        "records": 1867,
+        "mae_minutes": 11.50605386959607,
+        "rmse_minutes": 15.910212808711117,
+        "mean_signed_error_minutes": -0.32473334196313064
+      },
+      "missing_or_incomplete": {
+        "records": 133,
+        "mae_minutes": 31.922337060337735,
+        "rmse_minutes": 39.594529132008155,
+        "mean_signed_error_minutes": -2.968262984164721
+      }
+    },
+    "assigned_local_hour": {
+      "0": {
+        "records": 83,
+        "mae_minutes": 13.006771321512073,
+        "rmse_minutes": 17.582904648390166,
+        "mean_signed_error_minutes": -1.6336077630898023
+      },
+      "1": {
+        "records": 84,
+        "mae_minutes": 14.725517735186983,
+        "rmse_minutes": 20.432228118620085,
+        "mean_signed_error_minutes": 0.42939320155501953
+      },
+      "2": {
+        "records": 85,
+        "mae_minutes": 11.07964741365789,
+        "rmse_minutes": 15.744242129506924,
+        "mean_signed_error_minutes": 0.15423714645720013
+      },
+      "3": {
+        "records": 79,
+        "mae_minutes": 10.993041646015183,
+        "rmse_minutes": 15.914649290296405,
+        "mean_signed_error_minutes": -0.3565176793157317
+      },
+      "4": {
+        "records": 83,
+        "mae_minutes": 13.728215501474871,
+        "rmse_minutes": 20.024020751130173,
+        "mean_signed_error_minutes": 1.9941057408618594
+      },
+      "5": {
+        "records": 86,
+        "mae_minutes": 15.272638758965634,
+        "rmse_minutes": 23.04104820867257,
+        "mean_signed_error_minutes": -7.497203092437588
+      },
+      "6": {
+        "records": 84,
+        "mae_minutes": 10.870978460517378,
+        "rmse_minutes": 15.754069566694806,
+        "mean_signed_error_minutes": 0.4299739269558918
+      },
+      "7": {
+        "records": 86,
+        "mae_minutes": 11.82125133651276,
+        "rmse_minutes": 15.946160924257251,
+        "mean_signed_error_minutes": -1.770291995662095
+      },
+      "8": {
+        "records": 84,
+        "mae_minutes": 15.33929086396888,
+        "rmse_minutes": 23.137659685994457,
+        "mean_signed_error_minutes": -5.012753363987767
+      },
+      "9": {
+        "records": 81,
+        "mae_minutes": 11.680023083674893,
+        "rmse_minutes": 17.293221200181915,
+        "mean_signed_error_minutes": -2.3823828821306257
+      },
+      "10": {
+        "records": 86,
+        "mae_minutes": 11.404882369382127,
+        "rmse_minutes": 16.128598321622192,
+        "mean_signed_error_minutes": 3.812661573298125
+      },
+      "11": {
+        "records": 85,
+        "mae_minutes": 12.978767443851767,
+        "rmse_minutes": 19.635908963995686,
+        "mean_signed_error_minutes": 0.6890535111535059
+      },
+      "12": {
+        "records": 84,
+        "mae_minutes": 13.701644761257631,
+        "rmse_minutes": 17.702766502379895,
+        "mean_signed_error_minutes": 2.0260117348366036
+      },
+      "13": {
+        "records": 82,
+        "mae_minutes": 13.004970687908846,
+        "rmse_minutes": 17.382079797169137,
+        "mean_signed_error_minutes": 2.391790440475887
+      },
+      "14": {
+        "records": 85,
+        "mae_minutes": 12.560793062652701,
+        "rmse_minutes": 15.916677233670397,
+        "mean_signed_error_minutes": 1.126304753008102
+      },
+      "15": {
+        "records": 80,
+        "mae_minutes": 11.744764067145882,
+        "rmse_minutes": 15.548772252778905,
+        "mean_signed_error_minutes": 4.176963459774716
+      },
+      "16": {
+        "records": 82,
+        "mae_minutes": 12.75883225480446,
+        "rmse_minutes": 18.41228456042677,
+        "mean_signed_error_minutes": -3.9944104828829725
+      },
+      "17": {
+        "records": 81,
+        "mae_minutes": 16.090055446196526,
+        "rmse_minutes": 21.870094620988237,
+        "mean_signed_error_minutes": -4.57286470283402
+      },
+      "18": {
+        "records": 86,
+        "mae_minutes": 14.797334694932218,
+        "rmse_minutes": 21.39582722973464,
+        "mean_signed_error_minutes": -4.44011818071512
+      },
+      "19": {
+        "records": 84,
+        "mae_minutes": 13.307945359842309,
+        "rmse_minutes": 21.40631111175144,
+        "mean_signed_error_minutes": -2.75792152015228
+      },
+      "20": {
+        "records": 81,
+        "mae_minutes": 11.826511995967664,
+        "rmse_minutes": 15.195288230201841,
+        "mean_signed_error_minutes": 3.1866111114913944
+      },
+      "21": {
+        "records": 84,
+        "mae_minutes": 11.621054538330108,
+        "rmse_minutes": 18.70010586861424,
+        "mean_signed_error_minutes": 0.9224603383149854
+      },
+      "22": {
+        "records": 82,
+        "mae_minutes": 13.696290943755164,
+        "rmse_minutes": 19.60434953013722,
+        "mean_signed_error_minutes": -3.1853849381314157
+      },
+      "23": {
+        "records": 83,
+        "mae_minutes": 10.57479996628865,
+        "rmse_minutes": 14.45585128816873,
+        "mean_signed_error_minutes": 4.546201896207857
+      }
+    }
+  },
+  "all_predictions_finite_and_positive": true,
+  "api_checks": {
+    "health": {
+      "passed": true,
+      "http_status": 200,
+      "model_version": "gradient_boosting-synthetic-2e7b05c087e5"
+    },
+    "valid_prediction": {
+      "passed": true,
+      "http_status": 200,
+      "model_version": "gradient_boosting-synthetic-2e7b05c087e5",
+      "predicted_duration_minutes": 79.46159566004474
+    },
+    "missing_coordinates": {
+      "passed": true,
+      "http_status": 200
+    },
+    "invalid_weight_rejected": {
+      "passed": true,
+      "http_status": 422
+    },
+    "post_assignment_feature_rejected": {
+      "passed": true,
+      "http_status": 422
+    },
+    "all_passed": {
+      "passed": true
+    }
+  },
+  "integrity_checks": {
+    "old_model_unchanged": true,
+    "old_independent_dataset_unchanged": true,
+    "old_independent_report_unchanged": true,
+    "training_dataset_unchanged": true,
+    "validation_dataset_unchanged": true,
+    "new_independent_dataset_unchanged_during_evaluation": true
+  },
+  "real_world_accuracy_validated": false,
+  "note": "The independent test was generated after validation-based model selection and was not used to train or select the model."
+}

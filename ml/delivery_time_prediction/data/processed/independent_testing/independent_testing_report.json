@@ -1,0 +1,113 @@
+{
+  "status": "independent_synthetic_evaluation_complete",
+  "evaluation_type": "independent synthetic test; not real-world validation",
+  "data_source": "independent_synthetic_test",
+  "random_seed": 20261107,
+  "records_generated": 2000,
+  "dataset_path": "C:\\project-dev\\swerv\\ml\\delivery_time_prediction\\data\\processed\\independent_testing\\independent_delivery_time_test_dataset.csv",
+  "report_path": "C:\\project-dev\\swerv\\ml\\delivery_time_prediction\\data\\processed\\independent_testing\\independent_testing_report.json",
+  "model_artifact": "C:\\project-dev\\swerv\\ml\\delivery_time_prediction\\models\\synthetic\\gradient_boosting.joblib",
+  "model_version": "gradient_boosting-synthetic-916a99cdc260",
+  "training_provenance": "synthetic",
+  "model_modified": false,
+  "model_sha256_before": "916a99cdc2608e7e2383e759d7880d41a60713a53e218abadd125cb2a21b56f6",
+  "model_sha256_after": "916a99cdc2608e7e2383e759d7880d41a60713a53e218abadd125cb2a21b56f6",
+  "approved_raw_feature_columns": [
+    "request_created_at",
+    "assigned_at",
+    "priority",
+    "package_category",
+    "weight_kg",
+    "quantity",
+    "pickup_latitude",
+    "pickup_longitude",
+    "destination_latitude",
+    "destination_longitude",
+    "straight_line_distance_km"
+  ],
+  "feature_leakage_check": {
+    "passed": true,
+    "model_input_columns": [
+      "priority",
+      "package_category",
+      "request_to_assignment_minutes",
+      "request_created_hour",
+      "request_created_day_of_week",
+      "assigned_hour",
+      "assigned_day_of_week",
+      "weight_kg",
+      "quantity",
+      "pickup_latitude",
+      "pickup_longitude",
+      "destination_latitude",
+      "destination_longitude",
+      "straight_line_distance_km"
+    ]
+  },
+  "data_quality": {
+    "invalid_rows": 0,
+    "duplicate_feature_target_rows": 0,
+    "duplicate_record_ids": 0,
+    "missing_feature_values": {
+      "request_created_at": 0,
+      "assigned_at": 0,
+      "priority": 0,
+      "package_category": 0,
+      "weight_kg": 0,
+      "quantity": 0,
+      "pickup_latitude": 58,
+      "pickup_longitude": 58,
+      "destination_latitude": 69,
+      "destination_longitude": 69,
+      "straight_line_distance_km": 127
+    },
+    "records_missing_one_or_more_coordinate_pairs": 127,
+    "invalid_or_non_positive_durations": 0,
+    "invalid_or_non_positive_predictions": 0
+  },
+  "metrics": {
+    "mae_minutes": 12.402537317098618,
+    "rmse_minutes": 17.069773361284998,
+    "r2": 0.6910435027609122
+  },
+  "prediction_checks": {
+    "predictions_generated": 2000,
+    "all_predictions_finite_and_positive": true
+  },
+  "api_tests": {
+    "health": {
+      "passed": true,
+      "http_status": 200,
+      "model_available": true,
+      "model_version": "gradient_boosting-synthetic-916a99cdc260"
+    },
+    "valid_prediction": {
+      "passed": true,
+      "http_status": 200,
+      "prediction_status": "available",
+      "model_version": "gradient_boosting-synthetic-916a99cdc260",
+      "predicted_duration_minutes": 30.790949458278853
+    },
+    "missing_coordinates": {
+      "passed": true,
+      "http_status": 200
+    },
+    "invalid_weight_rejected": {
+      "passed": true,
+      "http_status": 422
+    },
+    "partial_coordinates_rejected": {
+      "passed": true,
+      "http_status": 422
+    },
+    "post_assignment_field_rejected": {
+      "passed": true,
+      "http_status": 422
+    },
+    "all_passed": {
+      "passed": true
+    }
+  },
+  "real_world_accuracy_validated": false,
+  "note": "This independent generated dataset was not part of training or the existing holdout. Results are synthetic-only and are not evidence of real-world accuracy."
+}

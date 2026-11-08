@@ -1,0 +1,46 @@
+{
+  "data_source": "synthetic",
+  "synthetic_only": true,
+  "real_world_accuracy_claim": false,
+  "model_name": "random_forest",
+  "model_version": "random_forest-synthetic-42981f2b88fd",
+  "test_scenarios": 1500,
+  "metrics": {
+    "threshold": 0.6670154996603103,
+    "precision": 1.0,
+    "recall": 0.9830097087378641,
+    "f1": 0.9914320685434517,
+    "accuracy": 0.9953333333333333,
+    "confusion_matrix": [
+      [
+        1088,
+        0
+      ],
+      [
+        7,
+        405
+      ]
+    ],
+    "false_positive_rate": 0.0,
+    "false_negative_rate": 0.01699029126213592,
+    "roc_auc": 0.9993820495431183,
+    "precision_recall_auc": 0.9985743089909097,
+    "predicted_category_counts": {
+      "gps_implausible_jump": 87,
+      "gps_invalid_coordinates": 50,
+      "gps_stale_update": 79,
+      "invalid_status_transition": 44,
+      "normal": 1095,
+      "repeated_dispatch_reassignment": 80,
+      "unusual_delivery_duration": 65
+    },
+    "category_accuracy": 0.9953333333333333
+  },
+  "test_was_used_for_model_selection": false,
+  "artifact_sha256": "f3985079913cf79888bb3eda9c288b56771ae321f9f46d204d1202bd15737198",
+  "limitations": [
+    "All scenarios and labels are synthetic and cannot validate real SWERV performance.",
+    "Rule thresholds and scenario frequencies are illustrative assumptions.",
+    "The independent test is synthetic and generated separately from training and validation scenarios."
+  ]
+}

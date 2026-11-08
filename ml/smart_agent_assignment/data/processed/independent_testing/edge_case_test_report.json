@@ -1,0 +1,55 @@
+{
+  "fastapi_base_url": "http://127.0.0.1:8002",
+  "api_tests": {
+    "health": {
+      "passed": true,
+      "http_status": 200,
+      "model_version": "gradient_boosting-synthetic-c22e749e234e",
+      "training_source": "synthetic"
+    },
+    "multiple_candidate_prediction": {
+      "passed": true,
+      "http_status": 200,
+      "candidate_predictions": 10,
+      "model_version": "gradient_boosting-synthetic-c22e749e234e"
+    },
+    "missing_optional_information": {
+      "passed": true,
+      "http_status": 200,
+      "gps_missing": true,
+      "historical_performance_missing": true,
+      "dispatch_coordinates_missing": true
+    },
+    "similar_prediction_tie": {
+      "passed": true,
+      "http_status": 200,
+      "predictions": [
+        87.1,
+        87.1
+      ]
+    },
+    "invalid_weight_rejected": {
+      "passed": true,
+      "http_status": 422
+    },
+    "ineligible_candidate_rejected_before_scoring": {
+      "passed": true,
+      "http_status": 422
+    },
+    "incompatible_capability_rejected": {
+      "passed": true,
+      "http_status": 422
+    },
+    "duplicate_agent_rejected": {
+      "passed": true,
+      "http_status": 422
+    },
+    "model_unavailable": {
+      "passed": true,
+      "http_status": 503,
+      "message": "Smart Agent Assignment model is unavailable; no recommendation prediction was made."
+    },
+    "all_passed": true
+  },
+  "ineligible_agent_behavior": "The Python API rejects ineligible candidate input before model scoring. The Admin/Operator backend performs eligibility filtering before sending candidates; verified separately by backend agent recommendation tests."
+}

@@ -1,0 +1,111 @@
+{
+  "evaluation_type": "independent synthetic-data evaluation; not real-world validation",
+  "scenario_count": 2000,
+  "candidate_row_count": 20000,
+  "seed": 20261107,
+  "target_method": "Existing src.synthetic_dataset.delivery_duration function, with a new RNG seed and independently generated scenarios.",
+  "metrics": {
+    "mae_minutes": 9.485468853078206,
+    "rmse_minutes": 13.086970155100207,
+    "r2": 0.8905602221352255
+  },
+  "predictions": {
+    "count": 20000,
+    "finite_and_positive": true,
+    "minimum_minutes": 2.1107225151431326,
+    "maximum_minutes": 261.09334721089635
+  },
+  "error_by_conditions": {
+    "priority": {
+      "express": {
+        "candidate_rows": 4480,
+        "mae_minutes": 9.22825031727256,
+        "rmse_minutes": 12.6240291350625
+      },
+      "standard": {
+        "candidate_rows": 14050,
+        "mae_minutes": 9.575561263757413,
+        "rmse_minutes": 13.298012855444796
+      },
+      "urgent": {
+        "candidate_rows": 1470,
+        "mae_minutes": 9.408285635640398,
+        "rmse_minutes": 12.422649845036817
+      }
+    },
+    "package_category": {
+      "documents": {
+        "candidate_rows": 2280,
+        "mae_minutes": 8.887403534432254,
+        "rmse_minutes": 11.818697274545805
+      },
+      "food": {
+        "candidate_rows": 3410,
+        "mae_minutes": 9.659109918925388,
+        "rmse_minutes": 13.457053417544765
+      },
+      "fragile": {
+        "candidate_rows": 1510,
+        "mae_minutes": 10.669162766908808,
+        "rmse_minutes": 15.591515913421308
+      },
+      "heavy_goods": {
+        "candidate_rows": 1430,
+        "mae_minutes": 12.275333460426516,
+        "rmse_minutes": 17.136466364593772
+      },
+      "other": {
+        "candidate_rows": 1290,
+        "mae_minutes": 9.109902997734332,
+        "rmse_minutes": 12.323416983087947
+      },
+      "parcel": {
+        "candidate_rows": 10080,
+        "mae_minutes": 9.03696375853209,
+        "rmse_minutes": 12.225004646896053
+      }
+    },
+    "vehicle_type": {
+      "bicycle": {
+        "candidate_rows": 4015,
+        "mae_minutes": 12.144991545512893,
+        "rmse_minutes": 16.36119699201494
+      },
+      "car": {
+        "candidate_rows": 3988,
+        "mae_minutes": 8.1013589758156,
+        "rmse_minutes": 10.835414103561499
+      },
+      "motorcycle": {
+        "candidate_rows": 4015,
+        "mae_minutes": 7.806138861969069,
+        "rmse_minutes": 10.317317191719528
+      },
+      "truck": {
+        "candidate_rows": 3996,
+        "mae_minutes": 10.602330707513127,
+        "rmse_minutes": 14.861365840189501
+      },
+      "van": {
+        "candidate_rows": 3986,
+        "mae_minutes": 8.763285341883837,
+        "rmse_minutes": 11.98392527050082
+      }
+    },
+    "gps_fresh": {
+      "0": {
+        "candidate_rows": 4482,
+        "mae_minutes": 7.205320641507655,
+        "rmse_minutes": 9.613456825553694
+      },
+      "1": {
+        "candidate_rows": 15518,
+        "mae_minutes": 10.14403466595739,
+        "rmse_minutes": 13.929923780341994
+      }
+    }
+  },
+  "signed_error_mean_minutes": 0.9577929729346273,
+  "model_version": "gradient_boosting-synthetic-c22e749e234e",
+  "dataset_path": "C:\\project-dev\\swerv\\ml\\smart_agent_assignment\\data\\processed\\independent_testing\\independent_agent_candidate_dataset.csv"
+}

@@ -1,0 +1,65 @@
+{
+  "status": "synthetic_exploratory_evaluation_complete",
+  "data_source": "synthetic",
+  "dataset_path": "C:\\project-dev\\swerv\\ml\\smart_agent_assignment\\data\\processed\\synthetic_agent_candidates.csv",
+  "candidate_rows": 10000,
+  "dispatch_scenarios": 1000,
+  "training_rows": 8000,
+  "test_rows": 2000,
+  "training_scenarios": 800,
+  "test_scenarios": 200,
+  "target_column": "delivery_duration_minutes",
+  "feature_columns": [
+    "priority",
+    "package_category",
+    "vehicle_type",
+    "capability_profile",
+    "weight_kg",
+    "quantity",
+    "pickup_to_destination_km",
+    "agent_to_pickup_km",
+    "active_workload",
+    "max_capacity",
+    "workload_ratio",
+    "gps_fresh",
+    "completed_delivery_count",
+    "historical_median_minutes",
+    "recommendation_hour",
+    "recommendation_day_of_week"
+  ],
+  "metrics": {
+    "linear_regression": {
+      "mae_minutes": 11.601910029900136,
+      "rmse_minutes": 15.40515083308737,
+      "r2": 0.8533993430221977,
+      "top_candidate_accuracy": 0.735
+    },
+    "random_forest": {
+      "mae_minutes": 10.462592833419473,
+      "rmse_minutes": 14.738693107856713,
+      "r2": 0.8658094420193607,
+      "top_candidate_accuracy": 0.68
+    },
+    "gradient_boosting": {
+      "mae_minutes": 8.441848000499538,
+      "rmse_minutes": 11.86635430171202,
+      "r2": 0.9130161493748838,
+      "top_candidate_accuracy": 0.72
+    }
+  },
+  "best_model": "gradient_boosting",
+  "best_model_artifact": "C:\\project-dev\\swerv\\ml\\smart_agent_assignment\\models\\synthetic\\gradient_boosting.joblib",
+  "best_model_version": "gradient_boosting-synthetic-c22e749e234e",
+  "model_artifacts": {
+    "linear_regression": "C:\\project-dev\\swerv\\ml\\smart_agent_assignment\\models\\synthetic\\linear_regression.joblib",
+    "random_forest": "C:\\project-dev\\swerv\\ml\\smart_agent_assignment\\models\\synthetic\\random_forest.joblib",
+    "gradient_boosting": "C:\\project-dev\\swerv\\ml\\smart_agent_assignment\\models\\synthetic\\gradient_boosting.joblib"
+  },
+  "model_versions": {
+    "linear_regression": "linear_regression-synthetic-8d7e96d3c23a",
+    "random_forest": "random_forest-synthetic-651ca3e5348a",
+    "gradient_boosting": "gradient_boosting-synthetic-c22e749e234e"
+  },
+  "real_world_accuracy_validated": false,
+  "note": "Metrics are based on synthetic candidate data and must not be treated as real-world performance."
+}

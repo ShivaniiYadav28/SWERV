@@ -1,0 +1,10 @@
+[
+  "hour_of_day",
+  "day_of_week",
+  "month",
+  "is_weekend",
+  "previous_hour_demand",
+  "previous_day_same_hour_demand",
+  "previous_week_same_hour_demand",
+  "previous_24_hour_average"
+]

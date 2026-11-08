@@ -1,0 +1,30 @@
+{
+  "training_source": "synthetic",
+  "model_name": "linear_regression",
+  "model_version": "linear_regression-synthetic-8d7e96d3c23a",
+  "artifact_sha256": "8d7e96d3c23a1c94265a8e6b6584ed3b9e3997c3ce11db76f824a815c1a95a81",
+  "target_column": "delivery_duration_minutes",
+  "feature_columns": [
+    "priority",
+    "package_category",
+    "vehicle_type",
+    "capability_profile",
+    "weight_kg",
+    "quantity",
+    "pickup_to_destination_km",
+    "agent_to_pickup_km",
+    "active_workload",
+    "max_capacity",
+    "workload_ratio",
+    "gps_fresh",
+    "completed_delivery_count",
+    "historical_median_minutes",
+    "recommendation_hour",
+    "recommendation_day_of_week"
+  ],
+  "training_rows": 8000,
+  "test_rows": 2000,
+  "training_scenarios": 800,
+  "test_scenarios": 200,
+  "real_world_accuracy_validated": false
+}

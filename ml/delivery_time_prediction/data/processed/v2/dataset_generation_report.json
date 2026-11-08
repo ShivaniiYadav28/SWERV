@@ -1,0 +1,16 @@
+{
+  "data_source": "synthetic_v2",
+  "target_generation_method": "shared v2_target.expected_delivery_duration",
+  "training_records": 10000,
+  "validation_records": 2000,
+  "training_seed": 31500101,
+  "validation_seed": 31500202,
+  "training_scenarios": 10000,
+  "validation_scenarios": 2000,
+  "overlapping_scenario_ids": 0,
+  "overlapping_feature_target_rows": 0,
+  "training_path": "C:\\project-dev\\swerv\\ml\\delivery_time_prediction\\data\\processed\\v2\\training_dataset.csv",
+  "validation_path": "C:\\project-dev\\swerv\\ml\\delivery_time_prediction\\data\\processed\\v2\\validation_dataset.csv",
+  "training_missing_coordinate_rows": 675,
+  "validation_missing_coordinate_rows": 117
+}

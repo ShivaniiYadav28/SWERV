@@ -1,0 +1,12 @@
+{
+  "status": "insufficient_data",
+  "usable_rows": 5,
+  "invalid_target_or_time_rows_excluded": 0,
+  "minimum_rows_required": 200,
+  "minimum_chronological_test_rows": 40,
+  "target_column": "delivery_duration_minutes",
+  "metrics": {},
+  "artifacts_saved": [],
+  "performance_claimed_reliable": false,
+  "reason": "Only 5 usable rows are available; at least 200 are required. With five rows, a chronological holdout would leave too few examples to fit and test the models, so performance estimates would be unstable. No model was trained and no model artifact was saved."
+}

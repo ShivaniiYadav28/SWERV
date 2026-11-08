@@ -1,0 +1,692 @@
+{
+  "status": "investigation_complete",
+  "conclusion": "The independent test is not sufficiently comparable for interpreting its score as a clean estimate of performance on the original synthetic target process. The main gap is target-generation shift, with additional timestamp, package, and missing-coordinate distribution differences.",
+  "performance_comparison": {
+    "original_training_holdout": {
+      "mae_minutes": 6.292422823562138,
+      "rmse_minutes": 8.442812076245845,
+      "r2": 0.9075159735635069
+    },
+    "independent_test": {
+      "mae_minutes": 12.402537317098618,
+      "rmse_minutes": 17.069773361284998,
+      "r2": 0.6910435027609122
+    },
+    "mae_increase_minutes": 6.11011449353648,
+    "rmse_increase_minutes": 8.626961285039153,
+    "r2_change": -0.21647247080259469
+  },
+  "dataset_comparison": {
+    "training_records": 10000,
+    "independent_records": 2000,
+    "training_data_source": [
+      "synthetic"
+    ],
+    "independent_data_source": [
+      "independent_synthetic_test"
+    ],
+    "independent_seed": 20261107,
+    "temporal_ranges_and_assigned_hour_frequency": {
+      "training_assigned_at_start": "2025-01-01 00:00:00+00:00",
+      "training_assigned_at_end": "2026-01-01 00:14:06+00:00",
+      "independent_assigned_at_start": "2026-01-01 00:00:00+00:00",
+      "independent_assigned_at_end": "2026-11-30 04:00:00+00:00",
+      "training_assigned_hour_frequency": {
+        "0": 419,
+        "1": 416,
+        "2": 415,
+        "3": 418,
+        "4": 417,
+        "5": 416,
+        "6": 417,
+        "7": 417,
+        "8": 416,
+        "9": 416,
+        "10": 417,
+        "11": 417,
+        "12": 416,
+        "13": 417,
+        "14": 417,
+        "15": 417,
+        "16": 415,
+        "17": 417,
+        "18": 418,
+        "19": 415,
+        "20": 417,
+        "21": 418,
+        "22": 416,
+        "23": 416
+      },
+      "independent_assigned_hour_frequency": {
+        "0": 334,
+        "4": 334,
+        "8": 333,
+        "12": 333,
+        "16": 333,
+        "20": 333
+      }
+    },
+    "target_duration_minutes": {
+      "training": {
+        "count": 10000,
+        "missing": 0,
+        "minimum": 6.0,
+        "p25": 44.8,
+        "median": 62.505,
+        "mean": 65.80444299999999,
+        "p75": 83.75,
+        "maximum": 203.22
+      },
+      "independent": {
+        "count": 2000,
+        "missing": 0,
+        "minimum": 11.06,
+        "p25": 47.1575,
+        "median": 68.57,
+        "mean": 70.99121,
+        "p75": 91.1275,
+        "maximum": 178.24
+      }
+    },
+    "numeric_feature_distributions": {
+      "weight_kg": {
+        "training": {
+          "count": 10000,
+          "missing": 0,
+          "minimum": 0.1,
+          "p25": 2.5475,
+          "median": 6.67,
+          "mean": 9.576082000000001,
+          "p75": 12.8525,
+          "maximum": 80.0
+        },
+        "independent": {
+          "count": 2000,
+          "missing": 0,
+          "minimum": 0.11,
+          "p25": 2.9575,
+          "median": 8.27,
+          "mean": 11.8655,
+          "p75": 16.0025,
+          "maximum": 89.76
+        },
+        "mean_difference_independent_minus_training": 2.2894179999999995,
+        "standardized_mean_difference": 0.18358293529217037
+      },
+      "quantity": {
+        "training": {
+          "count": 10000,
+          "missing": 0,
+          "minimum": 1.0,
+          "p25": 1.0,
+          "median": 2.0,
+          "mean": 2.4889,
+          "p75": 3.0,
+          "maximum": 4.0
+        },
+        "independent": {
+          "count": 2000,
+          "missing": 0,
+          "minimum": 1.0,
+          "p25": 2.0,
+          "median": 3.0,
+          "mean": 3.023,
+          "p75": 4.0,
+          "maximum": 5.0
+        },
+        "mean_difference_independent_minus_training": 0.5341,
+        "standardized_mean_difference": 0.4201562206481064
+      },
+      "pickup_latitude": {
+        "training": {
+          "count": 10000,
+          "missing": 0,
+          "minimum": 12.809869,
+          "p25": 12.90438475,
+          "median": 12.9720575,
+          "mean": 12.971236984199999,
+          "p75": 13.03667725,
+          "maximum": 13.133528
+        },
+        "independent": {
+          "count": 1942,
+          "missing": 58,
+          "minimum": 12.810415,
+          "p25": 12.906184,
+          "median": 12.973268000000001,
+          "mean": 12.97233691091658,
+          "p75": 13.0383085,
+          "maximum": 13.131709
+        },
+        "mean_difference_independent_minus_training": 0.001099926716580768,
+        "standardized_mean_difference": 0.013552241946340002
+      },
+      "pickup_longitude": {
+        "training": {
+          "count": 10000,
+          "missing": 0,
+          "minimum": 77.428659,
+          "p25": 77.5280975,
+          "median": 77.59350699999999,
+          "mean": 77.5942032502,
+          "p75": 77.66101375,
+          "maximum": 77.760627
+        },
+        "independent": {
+          "count": 1942,
+          "missing": 58,
+          "minimum": 77.428902,
+          "p25": 77.528379,
+          "median": 77.59902600000001,
+          "mean": 77.59713892533472,
+          "p75": 77.66722125,
+          "maximum": 77.758498
+        },
+        "mean_difference_independent_minus_training": 0.002935675134708049,
+        "standardized_mean_difference": 0.03516420102912124
+      },
+      "destination_latitude": {
+        "training": {
+          "count": 10000,
+          "missing": 0,
+          "minimum": 12.810247,
+          "p25": 12.90528025,
+          "median": 12.972463000000001,
+          "mean": 12.971320533899998,
+          "p75": 13.0370275,
+          "maximum": 13.133403
+        },
+        "independent": {
+          "count": 1931,
+          "missing": 69,
+          "minimum": 12.810997,
+          "p25": 12.906233499999999,
+          "median": 12.972566,
+          "mean": 12.971976650440187,
+          "p75": 13.0363945,
+          "maximum": 13.133125
+        },
+        "mean_difference_independent_minus_training": 0.000656116540186602,
+        "standardized_mean_difference": 0.008114338908314528
+      },
+      "destination_longitude": {
+        "training": {
+          "count": 10000,
+          "missing": 0,
+          "minimum": 77.428654,
+          "p25": 77.5271625,
+          "median": 77.5945355,
+          "mean": 77.5944850346,
+          "p75": 77.66188675000001,
+          "maximum": 77.760535
+        },
+        "independent": {
+          "count": 1931,
+          "missing": 69,
+          "minimum": 77.429178,
+          "p25": 77.5235675,
+          "median": 77.593132,
+          "mean": 77.5922358228897,
+          "p75": 77.661945,
+          "maximum": 77.759781
+        },
+        "mean_difference_independent_minus_training": -0.0022492117102927978,
+        "standardized_mean_difference": -0.02692588437377007
+      },
+      "straight_line_distance_km": {
+        "training": {
+          "count": 10000,
+          "missing": 0,
+          "minimum": 0.289,
+          "p25": 10.3475,
+          "median": 16.0235,
+          "mean": 16.3859488,
+          "p75": 22.11225,
+          "maximum": 35.476
+        },
+        "independent": {
+          "count": 1873,
+          "missing": 127,
+          "minimum": 0.5375179385252872,
+          "p25": 10.160618848272131,
+          "median": 15.861567592103109,
+          "mean": 16.203083503577336,
+          "p75": 22.16551339157888,
+          "maximum": 35.39350280712784
+        },
+        "mean_difference_independent_minus_training": -0.18286529642266558,
+        "standardized_mean_difference": -0.023637906742043756
+      },
+      "request_to_assignment_minutes": {
+        "training": {
+          "count": 10000,
+          "missing": 0,
+          "minimum": 2.0,
+          "p25": 8.0,
+          "median": 14.0,
+          "mean": 13.5752,
+          "p75": 19.0,
+          "maximum": 25.0
+        },
+        "independent": {
+          "count": 2000,
+          "missing": 0,
+          "minimum": 3.0,
+          "p25": 25.0,
+          "median": 47.0,
+          "mean": 46.439,
+          "p75": 69.0,
+          "maximum": 90.0
+        },
+        "mean_difference_independent_minus_training": 32.8638,
+        "standardized_mean_difference": 1.7559939120935144
+      },
+      "request_created_hour": {
+        "training": {
+          "count": 10000,
+          "missing": 0,
+          "minimum": 0.0,
+          "p25": 6.0,
+          "median": 12.0,
+          "mean": 11.5199,
+          "p75": 18.0,
+          "maximum": 23.0
+        },
+        "independent": {
+          "count": 2000,
+          "missing": 0,
+          "minimum": 2.0,
+          "p25": 7.0,
+          "median": 12.5,
+          "mean": 12.6555,
+          "p75": 19.0,
+          "maximum": 23.0
+        },
+        "mean_difference_independent_minus_training": 1.1356000000000002,
+        "standardized_mean_difference": 0.16492798230036831
+      },
+      "request_created_day_of_week": {
+        "training": {
+          "count": 10000,
+          "missing": 0,
+          "minimum": 0.0,
+          "p25": 1.0,
+          "median": 3.0,
+          "mean": 2.9972,
+          "p75": 5.0,
+          "maximum": 6.0
+        },
+        "independent": {
+          "count": 2000,
+          "missing": 0,
+          "minimum": 0.0,
+          "p25": 1.0,
+          "median": 3.0,
+          "mean": 3.016,
+          "p75": 5.0,
+          "maximum": 6.0
+        },
+        "mean_difference_independent_minus_training": 0.01880000000000015,
+        "standardized_mean_difference": 0.00940686146234599
+      },
+      "assigned_hour": {
+        "training": {
+          "count": 10000,
+          "missing": 0,
+          "minimum": 0.0,
+          "p25": 5.0,
+          "median": 11.0,
+          "mean": 11.498,
+          "p75": 17.25,
+          "maximum": 23.0
+        },
+        "independent": {
+          "count": 2000,
+          "missing": 0,
+          "minimum": 0.0,
+          "p25": 4.0,
+          "median": 8.0,
+          "mean": 9.992,
+          "p75": 16.0,
+          "maximum": 20.0
+        },
+        "mean_difference_independent_minus_training": -1.5059999999999985,
+        "standardized_mean_difference": -0.2189248577883244
+      },
+      "assigned_day_of_week": {
+        "training": {
+          "count": 10000,
+          "missing": 0,
+          "minimum": 0.0,
+          "p25": 1.0,
+          "median": 3.0,
+          "mean": 2.9969,
+          "p75": 5.0,
+          "maximum": 6.0
+        },
+        "independent": {
+          "count": 2000,
+          "missing": 0,
+          "minimum": 0.0,
+          "p25": 1.0,
+          "median": 3.0,
+          "mean": 3.015,
+          "p75": 5.0,
+          "maximum": 6.0
+        },
+        "mean_difference_independent_minus_training": 0.018100000000000005,
+        "standardized_mean_difference": 0.009054378326121477
+      }
+    },
+    "training_category_percentages": {
+      "priority": {
+        "standard": 68.26,
+        "express": 24.52,
+        "urgent": 7.22
+      },
+      "package_category": {
+        "parcel": 52.24,
+        "food": 18.14,
+        "documents": 11.17,
+        "fragile": 8.02,
+        "heavy_goods": 6.25,
+        "other": 4.18
+      }
+    },
+    "independent_category_percentages": {
+      "priority": {
+        "standard": 66.6,
+        "express": 26.1,
+        "urgent": 7.3
+      },
+      "package_category": {
+        "parcel": 50.0,
+        "food": 16.75,
+        "documents": 11.5,
+        "fragile": 8.4,
+        "heavy_goods": 7.65,
+        "other": 5.7
+      }
+    },
+    "training_coordinate_missing_records": 0,
+    "independent_coordinate_missing_records": 127,
+    "identical_rows_to_any_training_row": 0,
+    "identical_rows_to_original_holdout": 0,
+    "detected_shifts": [
+      {
+        "kind": "numeric_distribution_shift",
+        "feature": "quantity",
+        "standardized_mean_difference": 0.4201562206481064
+      },
+      {
+        "kind": "numeric_distribution_shift",
+        "feature": "request_to_assignment_minutes",
+        "standardized_mean_difference": 1.7559939120935144
+      },
+      {
+        "kind": "numeric_distribution_shift",
+        "feature": "assigned_hour",
+        "standardized_mean_difference": -0.2189248577883244
+      }
+    ]
+  },
+  "target_generation_comparison": {
+    "training_formula": "max(6, (11 + 3.1 * straight_line_km) * UTC-hour traffic factor * priority factor * package factor + 0.65 * sqrt(weight_kg) + 0.8 * (quantity - 1) + Normal(0, max(3, 11% of estimate)))",
+    "independent_formula": "max(5, straight_line_km * random route multiplier (1.12-1.48) / random speed (20-29 km/h) * 60 * random congestion + priority/package multipliers + 6 + 0.72 * sqrt(weight) + 1.1 * (quantity - 1) + Gamma delay + Normal noise)",
+    "key_assumption_changes": [
+      "Training has a fixed 11-minute route overhead and fixed 3.1 minutes per straight-line kilometre; independent labels use randomized road detours, speed, and congestion instead.",
+      "Training rush-hour factors use assigned_at.hour directly in UTC. Independent labels add five hours before checking rush hour, approximating Bengaluru local time; this shifts target peaks relative to the UTC hour feature.",
+      "Training priority multipliers are 1.00/0.86/0.76; independent multipliers are 1.00/0.94/0.88, so express and urgent effects are weaker in independent labels.",
+      "Package factors and handling overhead/noise differ; independent labels add gamma-distributed unexpected delay and broader random travel variation."
+    ],
+    "observed_target_shift": {
+      "mean_minutes_independent_minus_training": 5.186767000000003,
+      "median_minutes_independent_minus_training": 6.064999999999991,
+      "independent_standard_deviation_minutes": 30.71762889935516,
+      "training_standard_deviation_minutes": 27.736206685231483
+    }
+  },
+  "preprocessing_comparison": {
+    "same_raw_allowlist": [
+      "request_created_at",
+      "assigned_at",
+      "priority",
+      "package_category",
+      "weight_kg",
+      "quantity",
+      "pickup_latitude",
+      "pickup_longitude",
+      "destination_latitude",
+      "destination_longitude",
+      "straight_line_distance_km"
+    ],
+    "same_feature_builder": "Both datasets were transformed with src.training.build_features and the model's fitted preprocessing pipeline.",
+    "training_preprocessor_features": [
+      "priority",
+      "package_category",
+      "request_to_assignment_minutes",
+      "request_created_hour",
+      "request_created_day_of_week",
+      "assigned_hour",
+      "assigned_day_of_week",
+      "weight_kg",
+      "quantity",
+      "pickup_latitude",
+      "pickup_longitude",
+      "destination_latitude",
+      "destination_longitude",
+      "straight_line_distance_km"
+    ],
+    "identical_feature_columns": true,
+    "missing_coordinate_handling": "The training dataset has no missing coordinate rows. The independent dataset has missing coordinate pairs; the fitted numeric SimpleImputer fills their coordinate and distance values using training medians. This is valid pipeline behavior, but missingness was not represented in training."
+  },
+  "error_analysis": {
+    "overall_mean_signed_error_minutes": -5.3287614537992525,
+    "groups": {
+      "priority": {
+        "express": {
+          "records": 522,
+          "mae_minutes": 13.633110954615233,
+          "rmse_minutes": 18.79605588862778,
+          "mean_signed_error_minutes": -8.45660386391197
+        },
+        "standard": {
+          "records": 1332,
+          "mae_minutes": 11.74519830721809,
+          "rmse_minutes": 16.20369540460765,
+          "mean_signed_error_minutes": -3.63323086281664
+        },
+        "urgent": {
+          "records": 146,
+          "mae_minutes": 13.999908018312254,
+          "rmse_minutes": 18.246123425090563,
+          "mean_signed_error_minutes": -9.614466995648556
+        }
+      },
+      "package_category": {
+        "documents": {
+          "records": 230,
+          "mae_minutes": 11.718176674579873,
+          "rmse_minutes": 16.20860472973709,
+          "mean_signed_error_minutes": -6.901665111144894
+        },
+        "food": {
+          "records": 335,
+          "mae_minutes": 12.523214169915198,
+          "rmse_minutes": 17.43243120923183,
+          "mean_signed_error_minutes": -5.288993068581671
+        },
+        "fragile": {
+          "records": 168,
+          "mae_minutes": 14.633827446752523,
+          "rmse_minutes": 20.432370870209777,
+          "mean_signed_error_minutes": -6.951114466982192
+        },
+        "heavy_goods": {
+          "records": 153,
+          "mae_minutes": 14.87293881100294,
+          "rmse_minutes": 21.154945395000244,
+          "mean_signed_error_minutes": -8.744271927933996
+        },
+        "other": {
+          "records": 114,
+          "mae_minutes": 9.750955993886897,
+          "rmse_minutes": 12.714415177540753,
+          "mean_signed_error_minutes": -3.7814948654445786
+        },
+        "parcel": {
+          "records": 1000,
+          "mae_minutes": 12.068965619681293,
+          "rmse_minutes": 16.232308363102437,
+          "mean_signed_error_minutes": -4.3615760039727265
+        }
+      },
+      "straight_line_distance_band": {
+        "0-5 km": {
+          "records": 144,
+          "mae_minutes": 5.075773763443864,
+          "rmse_minutes": 6.307881794723816,
+          "mean_signed_error_minutes": 0.4717103717891147
+        },
+        "10-15 km": {
+          "records": 424,
+          "mae_minutes": 8.85927228442053,
+          "rmse_minutes": 11.275697229842207,
+          "mean_signed_error_minutes": -3.4487222417016667
+        },
+        "15-20 km": {
+          "records": 367,
+          "mae_minutes": 12.573762205643199,
+          "rmse_minutes": 15.973996485594249,
+          "mean_signed_error_minutes": -6.684202192801955
+        },
+        "20+ km": {
+          "records": 627,
+          "mae_minutes": 16.737465036090843,
+          "rmse_minutes": 21.374518138450146,
+          "mean_signed_error_minutes": -8.859784919735288
+        },
+        "5-10 km": {
+          "records": 311,
+          "mae_minutes": 6.472575090794059,
+          "rmse_minutes": 8.212790482330087,
+          "mean_signed_error_minutes": -1.3623570964686105
+        },
+        "missing": {
+          "records": 127,
+          "mae_minutes": 25.164563805748443,
+          "rmse_minutes": 30.998530261523513,
+          "mean_signed_error_minutes": -6.54575247417755
+        }
+      },
+      "weight_band": {
+        "0-2 kg": {
+          "records": 366,
+          "mae_minutes": 12.151683950586392,
+          "rmse_minutes": 17.02604432279573,
+          "mean_signed_error_minutes": -6.34563177002219
+        },
+        "10-25 kg": {
+          "records": 755,
+          "mae_minutes": 12.289592854050126,
+          "rmse_minutes": 16.61092672955887,
+          "mean_signed_error_minutes": -5.250171011582642
+        },
+        "2-10 kg": {
+          "records": 763,
+          "mae_minutes": 12.313466671495629,
+          "rmse_minutes": 16.942529669725932,
+          "mean_signed_error_minutes": -4.479543889132407
+        },
+        "25-50 kg": {
+          "records": 55,
+          "mae_minutes": 13.33093502020229,
+          "rmse_minutes": 17.411305757205856,
+          "mean_signed_error_minutes": -8.219931606835067
+        },
+        "50+ kg": {
+          "records": 61,
+          "mae_minutes": 15.58260995102429,
+          "rmse_minutes": 23.132593868964502,
+          "mean_signed_error_minutes": -8.215644921992308
+        }
+      }
+    },
+    "gradient_boosting_feature_importance_by_input": {
+      "straight_line_distance_km": 0.8360518063402366,
+      "assigned_hour": 0.06856865915332984,
+      "priority": 0.04106069170728589,
+      "package_category": 0.03151870976183171,
+      "assigned_day_of_week": 0.011761179590883014,
+      "request_created_day_of_week": 0.0033773040129839644,
+      "request_created_hour": 0.0026185415646377496,
+      "weight_kg": 0.0021920017797202014,
+      "quantity": 0.0011676126795218404,
+      "destination_latitude": 0.0006371755859981401,
+      "pickup_latitude": 0.0003928908371931492,
+      "pickup_longitude": 0.00038576762410018567,
+      "destination_longitude": 0.00021341468100942505,
+      "request_to_assignment_minutes": 5.424468126829766e-05
+    },
+    "absolute_error_spearman_correlation_by_numeric_feature": {
+      "straight_line_distance_km": 0.3945965221546736,
+      "assigned_hour": -0.11054404619278628,
+      "request_created_day_of_week": -0.07221698858870468,
+      "assigned_day_of_week": -0.06377005883849503,
+      "request_created_hour": -0.043535119647912096,
+      "weight_kg": 0.03411871823527196,
+      "destination_longitude": 0.03215419234290322,
+      "quantity": 0.019996154621255823,
+      "pickup_latitude": 0.009053219047064347,
+      "destination_latitude": 0.007668616996215082,
+      "request_to_assignment_minutes": 0.002455178650142157,
+      "pickup_longitude": 0.00027670170003029357
+    },
+    "interpretation_note": "Feature importance describes model reliance, not causal error contribution. Group MAE/RMSE and error correlations describe where this independent test has larger errors."
+  },
+  "root_causes_in_priority_order": [
+    {
+      "cause": "Target-generation shift",
+      "assessment": "Primary. The independent labels use a different travel-time equation and different priority/package/noise effects from the training labels. The model learned the training generator's relationship, so this test measures transfer between synthetic formulas rather than just repeat performance."
+    },
+    {
+      "cause": "Traffic-time mismatch",
+      "assessment": "Substantial. The independent target uses an approximate Bengaluru local hour while the model receives UTC-derived assigned_hour; the training target instead uses the UTC hour directly. This can put congestion peaks in different feature buckets."
+    },
+    {
+      "cause": "Missing-coordinate shift",
+      "assessment": "Secondary. 0/10000 training rows have missing coordinates versus 127/2000 independent rows. Imputation works, but the model did not train on missing-coordinate cases."
+    },
+    {
+      "cause": "Feature distribution shift",
+      "assessment": "Secondary. Request-to-assignment delays, quantities, weight ranges, and priority/category mix differ; numerical standardized mean differences and category percentage changes are included in this report."
+    },
+    {
+      "cause": "Preprocessing mismatch",
+      "assessment": "Not identified. Both evaluation and training use the same explicit allowlist, feature builder, and saved fitted preprocessing pipeline."
+    },
+    {
+      "cause": "Model limitation",
+      "assessment": "Also present. The model cannot infer the independent generator's random route detour, speed, congestion, or unexpected delays because those latent values are not prediction-time features. This adds irreducible error even if observable distributions match."
+    }
+  ],
+  "recommended_improvements_in_priority_order": [
+    "Define one documented target-generation process for synthetic experiments; keep independent tests realistic but do not silently change target semantics between training and evaluation.",
+    "Make timestamps timezone-consistent. Convert timestamps to Bengaluru local time before deriving traffic features, or use UTC consistently in both label generation and features.",
+    "Represent realistic missing-coordinate cases in training and report performance separately for complete and missing-coordinate subsets.",
+    "Align realistic ranges and frequencies for assignment delays, quantity, package weights, priorities, categories, and coordinates, or stratify evaluation to show subgroup effects.",
+    "For meaningful accuracy claims, collect and validate real assignment-to-delivery outcomes and evaluate on a later chronological real-data holdout before model changes."
+  ],
+  "integrity_checks": {
+    "independent_dataset_was_not_modified": true,
+    "model_was_not_modified": true,
+    "no_training_was_performed": true,
+    "independent_dataset_sha256_before": "d084d8d5e59b18b6d89ec6d35f31e0aa25da8a046871737db82f9d620b64dd3f",
+    "independent_dataset_sha256_after": "d084d8d5e59b18b6d89ec6d35f31e0aa25da8a046871737db82f9d620b64dd3f",
+    "model_sha256_before": "916a99cdc2608e7e2383e759d7880d41a60713a53e218abadd125cb2a21b56f6",
+    "model_sha256_after": "916a99cdc2608e7e2383e759d7880d41a60713a53e218abadd125cb2a21b56f6",
+    "api_test_failures": []
+  },
+  "real_world_validation": false,
+  "report_note": "All comparisons are synthetic. This investigation did not train a model or alter model/data artifacts."
+}

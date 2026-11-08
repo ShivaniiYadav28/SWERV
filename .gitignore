@@ -1,0 +1,59 @@
+# Local environment settings and secrets. Keep safe templates in the repo.
+.env
+.env.*
+!.env.example
+.ENV
+.ENV.*
+!.ENV.example
+*.env
+*.ENV
+
+# JavaScript dependencies and generated builds.
+node_modules/
+dist/
+build/
+coverage/
+.vite/
+.next/
+out/
+
+# Python environments, caches, and test output.
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+
+# Logs and temporary files.
+logs/
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# Private keys and certificates.
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+
+# IDE and operating-system files.
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln

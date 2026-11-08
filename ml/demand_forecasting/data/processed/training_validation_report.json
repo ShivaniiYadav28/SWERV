@@ -1,0 +1,75 @@
+{
+  "training_source": "synthetic",
+  "synthetic_only": true,
+  "real_world_accuracy_validated": false,
+  "source_dataset": "C:\\project-dev\\swerv\\ml\\demand_forecasting\\data\\synthetic_hourly_demand.csv",
+  "source_dataset_sha256": "839a714fc8a3f8d2f858d4844fbd7076dcfdc51f4c5c140f09c8c862193fe110",
+  "source_row_count": 17544,
+  "featured_row_count": 17376,
+  "forecast_granularity": "hourly UTC request counts",
+  "model_version": "gradient_boosting-synthetic-a62c1700d5fb",
+  "selected_model": "gradient_boosting",
+  "selection_metric": "validation MAE",
+  "feature_columns": [
+    "hour_of_day",
+    "day_of_week",
+    "month",
+    "is_weekend",
+    "previous_hour_demand",
+    "previous_day_same_hour_demand",
+    "previous_week_same_hour_demand",
+    "previous_24_hour_average"
+  ],
+  "created_at_utc": "2026-11-07T17:31:05.793127+00:00",
+  "split": {
+    "training_rows": 12163,
+    "validation_rows": 2606,
+    "final_test_rows": 2607,
+    "training_start_utc": "2024-01-08T00:00:00+00:00",
+    "training_end_utc": "2025-05-28T18:00:00+00:00",
+    "validation_start_utc": "2025-05-28T19:00:00+00:00",
+    "validation_end_utc": "2025-09-14T08:00:00+00:00",
+    "final_test_start_utc": "2025-09-14T09:00:00+00:00",
+    "final_test_end_utc": "2025-12-31T23:00:00+00:00"
+  },
+  "model_metrics": {
+    "linear_regression": {
+      "training": {
+        "mae": 1.1439716345559858,
+        "rmse": 1.5260294606015208,
+        "r2": 0.2933982053440374
+      },
+      "validation": {
+        "mae": 1.1788067958484596,
+        "rmse": 1.5915821739286309,
+        "r2": 0.30643865121332803
+      }
+    },
+    "random_forest": {
+      "training": {
+        "mae": 0.5470572706615007,
+        "rmse": 0.76720174667551,
+        "r2": 0.8214055057985178
+      },
+      "validation": {
+        "mae": 1.0908996896554455,
+        "rmse": 1.524413678939942,
+        "r2": 0.363743218605976
+      }
+    },
+    "gradient_boosting": {
+      "training": {
+        "mae": 1.0223869509448473,
+        "rmse": 1.424332662157805,
+        "r2": 0.3844380493908567
+      },
+      "validation": {
+        "mae": 1.067320164623146,
+        "rmse": 1.5022678345319835,
+        "r2": 0.38209531655059903
+      }
+    }
+  },
+  "model_artifact": "C:\\project-dev\\swerv\\ml\\demand_forecasting\\models\\synthetic\\best_demand_model.joblib",
+  "feature_columns_file": "C:\\project-dev\\swerv\\ml\\demand_forecasting\\models\\synthetic\\feature_columns.json"
+}
