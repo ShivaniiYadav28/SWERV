@@ -28,6 +28,9 @@ export const statusSchema = z.object({ status: z.enum(agentStatuses) }).strict()
 export const setAgentPasswordSchema = z.object({
   password: z.string().min(12).max(72),
 }).strict();
+export const resetAgentPasswordSchema = z.object({
+  newPassword: z.string().min(12).max(72),
+}).strict();
 export const agentLoginSchema = z.object({
   email: z.string().trim().email().max(254).transform((value) => value.toLowerCase()),
   password: z.string().min(1).max(72),

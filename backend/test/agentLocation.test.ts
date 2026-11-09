@@ -54,6 +54,17 @@ function locationInput(overrides: Record<string, unknown> = {}) {
   };
 }
 
+async function createActiveDispatch(agentId: string) {
+  return DispatchRequest.create({
+    customer: { name: 'Test Customer', email: 'test@example.com', phone: '+1 555 222 3333' },
+    pickup: { address: '10 North Street', city: 'Oakland', region: 'CA', postalCode: '94607', country: 'USA' },
+    delivery: { address: '20 South Street', city: 'Berkeley', region: 'CA', postalCode: '94704', country: 'USA' },
+    package: { description: 'Small parcel', category: 'parcel', weightKg: 2, quantity: 1 },
+    assignedAgent: agentId,
+    status: 'assigned',
+  });
+}
+
 function submitLocation(token: string, body = locationInput()) {
   return request(app)
     .post('/api/agent-locations')
@@ -131,6 +142,7 @@ describe('agent location API', () => {
 
   it('uses an HttpOnly GPS-only cookie for browser location updates and revokes it on stop', async () => {
     const agent = await createAgent({ status: 'on_duty' });
+    await createActiveDispatch(agent.id);
     const session = await request(app)
       .post('/api/agent-locations/browser-session')
       .set('Cookie', `swerv_agent_access=${createAgentAccessToken(agent.id)}`)
@@ -148,6 +160,13 @@ describe('agent location API', () => {
     expect(credential?.expiresAt).toBeInstanceOf(Date);
 
     await request(app).post('/api/agent-locations/browser').set('Cookie', gpsCookie).send(locationInput()).expect(201);
+    await request(app).post('/api/agent-locations/browser').set('Cookie', gpsCookie).send(locationInput()).expect(429);
+    await request(app)
+      .post('/api/agent-locations/browser')
+      .set('Cookie', gpsCookie)
+      .send(locationInput({ recordedAt: new Date(Date.now() - 3 * 60_000).toISOString() }))
+      .expect(400);
+    expect(await AgentLocation.countDocuments({ agentId: agent.id })).toBe(1);
     await request(app).delete('/api/agent-locations/browser-session').set('Cookie', gpsCookie).expect(200);
     expect((await AgentDeviceCredential.findById(credential?._id))?.revokedAt).toBeTruthy();
     await request(app).post('/api/agent-locations/browser').set('Cookie', gpsCookie).send(locationInput()).expect(401);
@@ -162,8 +181,17 @@ describe('agent location API', () => {
     expect(await AgentDeviceCredential.countDocuments({ agentId: agent.id, credentialType: 'browser' })).toBe(0);
   });
 
+  it('does not create browser GPS credentials for an on-duty agent without an active delivery', async () => {
+    const agent = await createAgent({ status: 'on_duty' });
+    await request(app)
+      .post('/api/agent-locations/browser-session')
+      .set('Cookie', `swerv_agent_access=${createAgentAccessToken(agent.id)}`)
+      .expect(403);
+  });
+
   it('invalidates the browser GPS session when an Admin rotates device credentials', async () => {
     const agent = await createAgent({ status: 'on_duty' });
+    await createActiveDispatch(agent.id);
     const session = await request(app)
       .post('/api/agent-locations/browser-session')
       .set('Cookie', `swerv_agent_access=${createAgentAccessToken(agent.id)}`)
@@ -237,13 +265,13 @@ describe('agent location API', () => {
 
   it('returns paginated history only to authenticated Admins and Operators', async () => {
     const agent = await createAgent();
-    const credential = await generateCredential(agent.id);
-    for (let day = 1; day <= 3; day += 1) {
-      await submitLocation(credential, locationInput({
-        latitude: 37 + day / 100,
-        recordedAt: new Date(Date.UTC(2026, 0, day)).toISOString(),
-      })).expect(201);
-    }
+    await AgentLocation.insertMany([1, 2, 3].map((day) => ({
+      agentId: agent.id,
+      latitude: 37 + day / 100,
+      longitude: -122.4194,
+      recordedAt: new Date(Date.UTC(2026, 0, day)),
+      receivedAt: new Date(Date.UTC(2026, 0, day)),
+    })));
 
     const firstPage = await request(app)
       .get(`/api/agent-locations/${agent.id}/history?page=1&limit=2`)

@@ -15,7 +15,7 @@ import {
   Phone,
   X,
 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { DashboardSidebar } from '../components/DashboardSidebar'
 import { LocationMapPicker, type MapPoint } from '../components/LocationMapPicker'
 import {
@@ -52,6 +52,7 @@ import { updateDispatchLocationPoint } from '../lib/dispatchCoordinateSelection'
 import type { Customer } from '../types/customer'
 import '../App.css'
 import './dispatch-requests.css'
+import { connectRealtime, dispatchUpdateEvent } from '../lib/realtime'
 
 const statusOptions: { value: DispatchRequestStatus; label: string }[] = [
   { value: 'pending', label: 'Pending' },
@@ -92,7 +93,7 @@ const statusTransitions: Record<DispatchRequestStatus, DispatchRequestStatus[]> 
   pending: ['assigned', 'cancelled'],
   assigned: ['picked_up', 'cancelled'],
   picked_up: ['in_transit', 'failed'],
-  in_transit: ['delivered', 'failed'],
+  in_transit: ['failed'],
   delivered: [],
   cancelled: [],
   failed: [],
@@ -149,6 +150,7 @@ function locationSummary(location: DispatchRequest['pickup']) {
 export function DispatchRequestsPage() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [menuOpen, setMenuOpen] = useState(false)
   const [filters, setFilters] = useState(initialFilters)
   const [search, setSearch] = useState('')
@@ -161,12 +163,25 @@ export function DispatchRequestsPage() {
   const [createError, setCreateError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
   const latestRequest = useRef(0)
-  const [selectedRequestId, setSelectedRequestId] = useState('')
+  const selectedRequestId = searchParams.get('dispatchId') ?? ''
   const [requestDetails, setRequestDetails] = useState<DispatchRequestDetails | null>(null)
-  const [isLoadingDetails, setIsLoadingDetails] = useState(false)
+  const [isLoadingDetails, setIsLoadingDetails] = useState(Boolean(searchParams.get('dispatchId')))
   const [detailsError, setDetailsError] = useState('')
+  const [detailsErrorId, setDetailsErrorId] = useState('')
   const [detailsRetry, setDetailsRetry] = useState(0)
   const latestDetailsRequest = useRef(0)
+
+  function setDispatchIdInUrl(id: string) {
+    setSearchParams({ dispatchId: id })
+  }
+
+  const closeRequestDetails = useCallback(() => {
+    if (searchParams.has('dispatchId')) {
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.delete('dispatchId')
+      setSearchParams(nextParams, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   const loadRequests = useCallback(async () => {
     const requestNumber = ++latestRequest.current
@@ -196,6 +211,16 @@ export function DispatchRequestsPage() {
   }, [loadRequests, reloadKey])
 
   useEffect(() => {
+    const socket = connectRealtime()
+    const onDispatchUpdate = () => setReloadKey((current) => current + 1)
+    socket.on(dispatchUpdateEvent, onDispatchUpdate)
+    return () => {
+      socket.off(dispatchUpdateEvent, onDispatchUpdate)
+      socket.disconnect()
+    }
+  }, [])
+
+  useEffect(() => {
     if (!selectedRequestId) return
     const requestNumber = ++latestDetailsRequest.current
 
@@ -206,6 +231,7 @@ export function DispatchRequestsPage() {
       .catch((error: unknown) => {
         if (requestNumber === latestDetailsRequest.current) {
           setDetailsError(error instanceof Error ? error.message : 'Request details could not be loaded.')
+          setDetailsErrorId(selectedRequestId)
         }
       })
       .finally(() => {
@@ -220,8 +246,9 @@ export function DispatchRequestsPage() {
   function openRequestDetails(id: string) {
     setRequestDetails(null)
     setDetailsError('')
+    setDetailsErrorId('')
     setIsLoadingDetails(true)
-    setSelectedRequestId(id)
+    setDispatchIdInUrl(id)
   }
 
   function retryRequestDetails() {
@@ -245,14 +272,14 @@ export function DispatchRequestsPage() {
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setSelectedRequestId('')
+      if (event.key === 'Escape') closeRequestDetails()
     }
     window.addEventListener('keydown', closeOnEscape)
     return () => {
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', closeOnEscape)
     }
-  }, [selectedRequestId])
+  }, [selectedRequestId, closeRequestDetails])
 
   async function handleLogout() {
     try {
@@ -505,11 +532,11 @@ export function DispatchRequestsPage() {
       )}
       {selectedRequestId && (
         <DispatchRequestDrawer
-          details={requestDetails}
-          isLoading={isLoadingDetails}
-          error={detailsError}
+          details={requestDetails?.dispatchRequest._id === selectedRequestId ? requestDetails : null}
+          isLoading={isLoadingDetails || (!requestDetails?.dispatchRequest || requestDetails.dispatchRequest._id !== selectedRequestId && detailsErrorId !== selectedRequestId)}
+          error={detailsErrorId === selectedRequestId ? detailsError : ''}
           canPredict={user?.role === 'admin' || user?.role === 'operator'}
-          onClose={() => setSelectedRequestId('')}
+          onClose={closeRequestDetails}
           onRetry={retryRequestDetails}
           onAssigned={() => handleRequestUpdated('Agent assignment updated successfully.')}
           onStatusUpdated={() => handleRequestUpdated('Dispatch request status updated successfully.')}
@@ -774,7 +801,7 @@ function DispatchRequestDrawer({
           requestKey,
           state: {
             status: 'unavailable',
-            message: 'The AI model is not trained or is currently unavailable. No prediction was provided.',
+            message: error.message,
           },
         })
       } else if (error instanceof ApiError && error.status === 409) {
@@ -1293,6 +1320,8 @@ function StatusManagement({
           </label>
           <button className="dispatch-create-button" type="button" disabled={!nextStatus || isUpdating} onClick={() => void handleUpdate()}>{isUpdating ? 'Updating…' : 'Update Status'}</button>
         </div>
+      ) : currentStatus === 'in_transit' ? (
+        <p className="dispatch-status-terminal">An agent must submit verified proof of delivery to complete this request.</p>
       ) : (
         <p className="dispatch-status-terminal">This request is in a terminal status and cannot be changed.</p>
       )}

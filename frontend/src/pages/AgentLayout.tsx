@@ -1,16 +1,18 @@
 import { useState } from 'react'
-import { Clock3, Command, LayoutDashboard, LogOut, PackageCheck, Truck } from 'lucide-react'
+import { CalendarDays, Clock3, Command, LayoutDashboard, LogOut, PackageCheck, Truck } from 'lucide-react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAgentAuth } from '../hooks/useAgentAuth'
 import { useAgentGpsTracking } from '../hooks/useAgentGpsTracking'
 import { AgentGpsContext } from '../context/agent-gps-context'
 import { formatAgentStatus } from '../lib/agentUi'
 import './agent-portal.css'
+import { NotificationBell } from '../components/NotificationBell'
 
 const navigation = [
   { to: '/agent/dashboard', label: 'Overview', icon: LayoutDashboard, end: true },
   { to: '/agent/deliveries', label: 'My deliveries', icon: PackageCheck, end: false },
   { to: '/agent/history', label: 'History', icon: Clock3, end: true },
+  { to: '/agent/attendance', label: 'Attendance', icon: CalendarDays, end: true },
 ]
 
 export function AgentLayout() {
@@ -68,7 +70,7 @@ export function AgentLayout() {
         <header className="agent-topbar">
           <div className="agent-mobile-brand"><span className="agent-brand-mark"><Command size={17} /></span><strong>SWERV</strong></div>
           <div className="agent-topbar-context"><span className="agent-live-indicator" /> Delivery workspace <span className="agent-topbar-divider">/</span> {agent.agentCode}</div>
-          <div className="agent-topbar-right"><span className={`agent-status-pill status-${agent.status}`}><i />{formatAgentStatus(agent.status)}</span><button className="agent-mobile-logout" type="button" onClick={() => void handleLogout()} aria-label="Sign out"><LogOut size={17} /></button><span className="agent-top-avatar">{initials}</span></div>
+          <div className="agent-topbar-right"><NotificationBell recipientType="agent" recipientId={agent.id} /><span className={`agent-status-pill status-${agent.status}`}><i />{formatAgentStatus(agent.status)}</span><button className="agent-mobile-logout" type="button" onClick={() => void handleLogout()} aria-label="Sign out"><LogOut size={17} /></button><span className="agent-top-avatar">{initials}</span></div>
         </header>
         <main className="agent-page-content"><Outlet /></main>
         <footer className="agent-footer"><span>SWERV</span><span>Deliver with care</span></footer>

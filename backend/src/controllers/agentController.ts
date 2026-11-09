@@ -3,6 +3,7 @@ import { Agent } from '../models/Agent.js';
 import { AgentActivity } from '../models/AgentActivity.js';
 import { archiveAgent, changeAgentStatus, createAgent, restoreAgent, updateAgent } from '../services/agentService.js';
 import { HttpError } from '../utils/httpError.js';
+import { publishNotification } from '../realtime/socketServer.js';
 import { createAgentSchema, listQuerySchema, parseAgentId, parseRequest, statusSchema, updateAgentSchema } from '../utils/agentValidation.js';
 
 function actorId(req: Parameters<RequestHandler>[0]): string {
@@ -53,19 +54,22 @@ export const updateAgentHandler: RequestHandler = async (req, res) => {
 export const changeAgentStatusHandler: RequestHandler = async (req, res) => {
   const id = parseAgentId(req.params.id);
   const { status } = parseRequest(statusSchema, req.body);
-  const agent = await changeAgentStatus(id, status, actorId(req), req.user?.role === 'admin');
+  const { agent, notifications } = await changeAgentStatus(id, status, actorId(req), req.user?.role === 'admin');
+  notifications.forEach(publishNotification);
   res.json({ success: true, message: 'Agent status updated successfully.', data: { agent } });
 };
 
 export const archiveAgentHandler: RequestHandler = async (req, res) => {
   const id = parseAgentId(req.params.id);
-  const agent = await archiveAgent(id, actorId(req));
+  const { agent, notifications } = await archiveAgent(id, actorId(req));
+  notifications.forEach(publishNotification);
   res.json({ success: true, message: 'Agent archived successfully.', data: { agent } });
 };
 
 export const restoreAgentHandler: RequestHandler = async (req, res) => {
   const id = parseAgentId(req.params.id);
-  const agent = await restoreAgent(id, actorId(req));
+  const { agent, notifications } = await restoreAgent(id, actorId(req));
+  notifications.forEach(publishNotification);
   res.json({
     success: true,
     message: 'Agent restored successfully.',

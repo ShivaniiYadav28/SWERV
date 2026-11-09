@@ -1,6 +1,8 @@
 import {
   Activity,
   AlertTriangle,
+  ClipboardCheck,
+  CalendarDays,
   BarChart3,
   Command,
   LayoutDashboard,
@@ -15,10 +17,11 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { AuthUser } from '../types/auth'
+import { NotificationBell } from './NotificationBell'
 
 type DashboardSidebarProps = {
   user: AuthUser
-  activePage: 'dashboard' | 'agents' | 'dispatch' | 'admin' | 'customers' | 'liveFleet' | 'demandForecast' | 'anomalyDetection'
+  activePage: 'dashboard' | 'agents' | 'dispatch' | 'admin' | 'customers' | 'liveFleet' | 'demandForecast' | 'anomalyDetection' | 'pod' | 'routeOptimization' | 'attendance'
   menuOpen: boolean
   onMenuClose: () => void
   onLogout: () => void
@@ -75,6 +78,7 @@ export function DashboardSidebar({
             <strong>SWERV Operations</strong>
             <span>Fleet operations workspace</span>
           </div>
+          <NotificationBell recipientType="user" recipientId={user.id} isAdmin={user.role === 'admin'} />
         </div>
 
         <div className="nav-label">WORKSPACE</div>
@@ -104,12 +108,24 @@ export function DashboardSidebar({
             <span>Dispatch</span>
           </Link>
           <Link
+            to="/route-optimization"
+            className={`nav-item ${activePage === 'routeOptimization' ? 'active' : ''}`}
+            onClick={onMenuClose}
+          >
+            <Navigation size={17} strokeWidth={1.8} />
+            <span>Route optimization</span>
+          </Link>
+          <Link
             to="/agents"
             className={`nav-item ${activePage === 'agents' ? 'active' : ''}`}
             onClick={onMenuClose}
           >
             <Truck size={17} strokeWidth={1.8} />
             <span>Fleet agents</span>
+          </Link>
+          <Link to="/agent-attendance" className={`nav-item ${activePage === 'attendance' ? 'active' : ''}`} onClick={onMenuClose}>
+            <CalendarDays size={17} strokeWidth={1.8} />
+            <span>Attendance</span>
           </Link>
           <Link
             to="/customers"
@@ -128,6 +144,10 @@ export function DashboardSidebar({
               <Link to="/admin/anomaly-detection" className={`nav-item ${activePage === 'anomalyDetection' ? 'active' : ''}`} onClick={onMenuClose}>
                 <AlertTriangle size={17} />
                 <span>AI Anomaly Detection</span>
+              </Link>
+              <Link to="/admin/proof-of-delivery" className={`nav-item ${activePage === 'pod' ? 'active' : ''}`} onClick={onMenuClose}>
+                <ClipboardCheck size={17} />
+                <span>Proof of delivery</span>
               </Link>
               <Link to="/admin/users" className={`nav-item ${activePage === 'admin' ? 'active' : ''}`} onClick={onMenuClose}>
                 <ShieldCheck size={17} />

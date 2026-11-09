@@ -8,6 +8,7 @@ import {
   updateDispatchRequestCoordinates,
 } from '../services/dispatchRequestService.js';
 import { HttpError } from '../utils/httpError.js';
+import { publishDispatchUpdate, publishNotification } from '../realtime/socketServer.js';
 import {
   dispatchAssignmentSchema,
   dispatchRequestListQuerySchema,
@@ -25,7 +26,9 @@ function actorId(req: Parameters<RequestHandler>[0]): string {
 
 export const createDispatchRequestHandler: RequestHandler = async (req, res) => {
   const input = parseRequest(createDispatchRequestSchema, req.body);
-  const dispatchRequest = await createDispatchRequest(input, actorId(req));
+  const { dispatchRequest, notifications } = await createDispatchRequest(input, actorId(req));
+  notifications.forEach(publishNotification);
+  publishDispatchUpdate({ dispatchId: dispatchRequest.id, status: dispatchRequest.status, assignedAgentId: null });
   res.status(201).json({
     success: true,
     message: 'Dispatch request created successfully.',
@@ -61,7 +64,13 @@ export const getDispatchRequestHandler: RequestHandler = async (req, res) => {
 export const assignDispatchRequestHandler: RequestHandler = async (req, res) => {
   const id = parseDispatchRequestId(req.params.id);
   const { agentId } = parseRequest(dispatchAssignmentSchema, req.body);
-  const dispatchRequest = await assignDispatchRequest(id, agentId, actorId(req));
+  const { dispatchRequest, previousAgentId, notifications } = await assignDispatchRequest(id, agentId, actorId(req));
+  notifications.forEach(publishNotification);
+  publishDispatchUpdate({
+    dispatchId: dispatchRequest.id,
+    status: dispatchRequest.status,
+    assignedAgentId: dispatchRequest.assignedAgent?.toString() ?? null,
+  }, previousAgentId);
   res.json({
     success: true,
     message: 'Agent assigned successfully.',
@@ -72,7 +81,13 @@ export const assignDispatchRequestHandler: RequestHandler = async (req, res) => 
 export const changeDispatchRequestStatusHandler: RequestHandler = async (req, res) => {
   const id = parseDispatchRequestId(req.params.id);
   const { status } = parseRequest(dispatchStatusSchema, req.body);
-  const dispatchRequest = await changeDispatchRequestStatus(id, status, actorId(req));
+  const { dispatchRequest, notifications } = await changeDispatchRequestStatus(id, status, actorId(req));
+  notifications.forEach(publishNotification);
+  publishDispatchUpdate({
+    dispatchId: dispatchRequest.id,
+    status: dispatchRequest.status,
+    assignedAgentId: dispatchRequest.assignedAgent?.toString() ?? null,
+  });
   res.json({
     success: true,
     message: 'Dispatch request status updated successfully.',

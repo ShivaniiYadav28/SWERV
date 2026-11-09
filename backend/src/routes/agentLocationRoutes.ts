@@ -3,6 +3,7 @@ import {
   getAgentLocationHistoryHandler,
   listLatestAgentLocationsHandler,
   submitAgentLocationHandler,
+  submitAgentBrowserLocationHandler,
   createAgentBrowserGpsSessionHandler,
   stopAgentBrowserGpsSessionHandler,
 } from '../controllers/agentLocationController.js';
@@ -17,7 +18,7 @@ router.get('/', requireAuth, allowRoles('admin', 'operator'), listLatestAgentLoc
 router.get('/:agentId/history', requireAuth, allowRoles('admin', 'operator'), getAgentLocationHistoryHandler);
 router.post('/browser-session', requireAgentAuth, createAgentBrowserGpsSessionHandler);
 router.delete('/browser-session', requireAgentGpsCookie, stopAgentBrowserGpsSessionHandler);
-router.post('/browser', requireAgentGpsCookie, submitAgentLocationHandler);
+router.post('/browser', requireAgentGpsCookie, submitAgentBrowserLocationHandler);
 router.post('/', requireAgentDevice, submitAgentLocationHandler);
 
 export default router;

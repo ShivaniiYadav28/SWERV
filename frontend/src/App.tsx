@@ -16,6 +16,9 @@ import { AgentDashboardPage } from './pages/AgentDashboardPage'
 import { AgentDeliveriesPage } from './pages/AgentDeliveriesPage'
 import { AgentDeliveryDetailsPage } from './pages/AgentDeliveryDetailsPage'
 import { AgentHistoryPage } from './pages/AgentHistoryPage'
+import { ProofOfDeliveryPage } from './pages/ProofOfDeliveryPage'
+import { AgentAttendancePage } from './pages/AgentAttendancePage'
+import { AdminAttendancePage } from './pages/AdminAttendancePage'
 
 const LiveFleetPage = lazy(() =>
   import('./pages/LiveFleetPage').then((module) => ({ default: module.LiveFleetPage })),
@@ -25,6 +28,9 @@ const AnomalyDetectionPage = lazy(() =>
 )
 const CustomerTrackingPage = lazy(() =>
   import('./pages/CustomerTrackingPage').then((module) => ({ default: module.CustomerTrackingPage })),
+)
+const RouteOptimizationPage = lazy(() =>
+  import('./pages/RouteOptimizationPage').then((module) => ({ default: module.RouteOptimizationPage })),
 )
 
 function App() {
@@ -61,6 +67,7 @@ function App() {
           <Route path="deliveries" element={<AgentDeliveriesPage />} />
           <Route path="deliveries/:id" element={<AgentDeliveryDetailsPage />} />
           <Route path="history" element={<AgentHistoryPage />} />
+          <Route path="attendance" element={<AgentAttendancePage />} />
         </Route>
       </Route>
 
@@ -69,13 +76,16 @@ function App() {
         <Route path="/agents" element={<FleetAgentsPage />} />
         <Route path="/dispatch-requests" element={<DispatchRequestsPage />} />
         <Route path="/customers" element={<CustomersPage />} />
+        <Route path="/agent-attendance" element={<AdminAttendancePage />} />
         <Route path="/live-fleet" element={<Suspense fallback={<main className="auth-loading"><span className="spinner" /><p>Loading live fleet…</p></main>}><LiveFleetPage /></Suspense>} />
+        <Route path="/route-optimization" element={<Suspense fallback={<main className="auth-loading"><span className="spinner" /><p>Loading route optimization…</p></main>}><RouteOptimizationPage /></Suspense>} />
       </Route>
       <Route element={<ProtectedRoute requiredRole="admin" />}>
         <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
         <Route path="/admin/users" element={<AdminUsersPage />} />
         <Route path="/admin/demand-forecasting" element={<DemandForecastingPage />} />
         <Route path="/admin/anomaly-detection" element={<Suspense fallback={<main className="auth-loading"><span className="spinner" /><p>Loading anomaly dashboard…</p></main>}><AnomalyDetectionPage /></Suspense>} />
+        <Route path="/admin/proof-of-delivery" element={<ProofOfDeliveryPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

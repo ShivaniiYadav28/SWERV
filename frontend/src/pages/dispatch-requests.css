@@ -63,7 +63,54 @@
   cursor: pointer;
 }
 .dispatch-coordinate-clear:hover { color: #f0b2a7; text-decoration: underline; }
+.dispatch-coordinate-inputs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  margin-top: 12px;
+}
+.dispatch-coordinate-inputs label {
+  display: grid;
+  gap: 5px;
+  color: #aaa2aa;
+  font-size: 9px;
+}
+.dispatch-coordinate-inputs input {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  border: 1px solid #403b42;
+  border-radius: 6px;
+  padding: 0 8px;
+  background: #171619;
+  color: #f1eceb;
+  font: 11px ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.dispatch-coordinate-inputs input:focus { border-color: #c96659; outline: 2px solid #c9665933; }
+.dispatch-coordinate-inputs input[aria-invalid='true'] { border-color: #d66e64; }
+.dispatch-coordinate-set {
+  min-height: 34px;
+  border: 1px solid #a85f55;
+  border-radius: 6px;
+  padding: 0 10px;
+  background: #c96659;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dispatch-coordinate-set:hover { background: #d77567; }
+.dispatch-coordinate-error {
+  margin: 7px 0 0;
+  color: #f19b91;
+  font-size: 10px;
+}
 .dispatch-coordinate-save { margin-top: 13px; }
+@media (max-width: 520px) {
+  .dispatch-coordinate-inputs { grid-template-columns: 1fr 1fr; }
+  .dispatch-coordinate-set { grid-column: 1 / -1; }
+}
 .dispatch-map-selected-coordinate {
   display: inline-flex;
   margin-top: 5px;

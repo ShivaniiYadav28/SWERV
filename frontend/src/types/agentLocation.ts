@@ -9,6 +9,7 @@ export type AgentLocation = {
   heading?: number
   recordedAt: string
   receivedAt: string
+  activeDispatch?: { _id: string; status: string; priority: string } | null
   agent: {
     _id: string
     agentCode: string

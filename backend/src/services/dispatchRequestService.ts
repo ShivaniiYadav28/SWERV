@@ -14,6 +14,7 @@ import {
 } from '../utils/dispatchRequestValidation.js';
 import { HttpError } from '../utils/httpError.js';
 import { Customer } from '../models/Customer.js';
+import { createAgentNotification, createUserNotifications, type NotificationPayload } from './notificationService.js';
 
 export type CreateDispatchRequestInput = z.output<typeof createDispatchRequestSchema>;
 export type UpdateDispatchRequestCoordinatesInput = z.output<typeof updateDispatchRequestCoordinatesSchema>;
@@ -104,6 +105,9 @@ export async function changeAgentDeliveryStatus(agentId: string, id: string, sta
   if (!['picked_up', 'in_transit', 'delivered'].includes(status)) {
     throw new HttpError(400, 'Agents can only mark deliveries picked up, in transit, or delivered.');
   }
+  if (status === 'delivered') {
+    throw new HttpError(409, 'Submit verified proof of delivery to complete this delivery.');
+  }
   return runTransaction(async (session) => {
     const dispatchRequest = await DispatchRequest.findOne({ _id: id, assignedAgent: agentId }).session(session);
     if (!dispatchRequest) throw new HttpError(404, 'Delivery not found.');
@@ -113,9 +117,6 @@ export async function changeAgentDeliveryStatus(agentId: string, id: string, sta
     const previousStatus = dispatchRequest.status;
     dispatchRequest.status = status;
     await dispatchRequest.save({ session });
-    if (status === 'delivered') {
-      await Agent.updateOne({ _id: agentId, activeDispatchCount: { $gt: 0 } }, { $inc: { activeDispatchCount: -1 } }, { session });
-    }
     await DispatchRequestActivity.create([{
       dispatchRequestId: dispatchRequest._id,
       eventType: 'status_changed',
@@ -125,7 +126,16 @@ export async function changeAgentDeliveryStatus(agentId: string, id: string, sta
       previousValue: { status: previousStatus },
       newValue: { status },
     }], { session });
-    return dispatchRequest;
+    const notifications = status === 'picked_up' || status === 'in_transit'
+      ? await createUserNotifications(session, ['admin', 'operator'], {
+        eventType: 'dispatch_status_changed',
+        title: 'Delivery status updated',
+        message: `Dispatch #${dispatchRequest.id.slice(-8).toUpperCase()} is now ${status.replaceAll('_', ' ')}.`,
+        relatedEntityType: 'dispatch',
+        relatedEntityId: dispatchRequest._id,
+      })
+      : [];
+    return { dispatchRequest, notifications };
   });
 }
 
@@ -238,7 +248,34 @@ export async function assignDispatchRequest(
         { status: 'assigned' },
       );
     }
-    return dispatchRequest;
+    const eventType = previousAgentId ? 'dispatch_reassigned' : 'dispatch_assigned';
+    const reference = dispatchRequest.id.slice(-8).toUpperCase();
+    const notifications: NotificationPayload[] = await createUserNotifications(session, ['admin', 'operator'], {
+      eventType,
+      title: previousAgentId ? 'Dispatch reassigned' : 'Dispatch assigned',
+      message: previousAgentId
+        ? `Dispatch #${reference} was reassigned to agent ${availableAgent.agentCode}.`
+        : `Dispatch #${reference} was assigned to agent ${availableAgent.agentCode}.`,
+      relatedEntityType: 'dispatch',
+      relatedEntityId: dispatchRequest._id,
+    });
+    notifications.push(await createAgentNotification(session, availableAgent._id, {
+      eventType,
+      title: previousAgentId ? 'Delivery reassigned to you' : 'New delivery assigned',
+      message: `Dispatch #${reference} is assigned to you.`,
+      relatedEntityType: 'dispatch',
+      relatedEntityId: dispatchRequest._id,
+    }));
+    if (previousAgentId) {
+      notifications.push(await createAgentNotification(session, previousAgentId, {
+        eventType: 'dispatch_reassigned',
+        title: 'Delivery reassigned',
+        message: `Dispatch #${reference} was reassigned to another agent.`,
+        relatedEntityType: 'dispatch',
+        relatedEntityId: dispatchRequest._id,
+      }));
+    }
+    return { dispatchRequest, previousAgentId, notifications };
   });
 }
 
@@ -247,6 +284,9 @@ export async function changeDispatchRequestStatus(
   status: DispatchRequestStatus,
   performedBy: string,
 ) {
+  if (status === 'delivered') {
+    throw new HttpError(409, 'Submit verified proof of delivery to complete this delivery.');
+  }
   return runTransaction(async (session) => {
     const dispatchRequest = await DispatchRequest.findById(id).session(session);
     if (!dispatchRequest) throw new HttpError(404, 'Dispatch request not found.');
@@ -281,7 +321,26 @@ export async function changeDispatchRequestStatus(
       { status: previousStatus },
       { status },
     );
-    return dispatchRequest;
+    const notifications: NotificationPayload[] = [];
+    if (dispatchRequest.assignedAgent && ['picked_up', 'in_transit', 'failed', 'cancelled'].includes(status)) {
+      notifications.push(await createAgentNotification(session, dispatchRequest.assignedAgent, {
+        eventType: 'dispatch_status_changed',
+        title: 'Delivery status updated',
+        message: `Dispatch #${dispatchRequest.id.slice(-8).toUpperCase()} is now ${status.replaceAll('_', ' ')}.`,
+        relatedEntityType: 'dispatch',
+        relatedEntityId: dispatchRequest._id,
+      }));
+    }
+    if (status === 'failed' || status === 'cancelled') {
+      notifications.push(...await createUserNotifications(session, ['admin', 'operator'], {
+        eventType: 'dispatch_status_changed',
+        title: status === 'failed' ? 'Delivery failed' : 'Dispatch cancelled',
+        message: `Dispatch #${dispatchRequest.id.slice(-8).toUpperCase()} is now ${status}.`,
+        relatedEntityType: 'dispatch',
+        relatedEntityId: dispatchRequest._id,
+      }));
+    }
+    return { dispatchRequest, notifications };
   });
 }
 
@@ -321,7 +380,14 @@ export async function createDispatchRequest(
       null,
       { status: dispatchRequest.status },
     );
-    return dispatchRequest;
+    const notifications = await createUserNotifications(session, ['admin', 'operator'], {
+      eventType: 'new_dispatch',
+      title: 'New dispatch request',
+      message: `Dispatch #${dispatchRequest.id.slice(-8).toUpperCase()} is ready for assignment.`,
+      relatedEntityType: 'dispatch',
+      relatedEntityId: dispatchRequest._id,
+    });
+    return { dispatchRequest, notifications };
   });
 }
 

@@ -43,6 +43,8 @@ logs/
 # Private keys and certificates.
 *.pem
 *.key
+backend/private_uploads/
+private_uploads/
 *.p12
 *.pfx
 *.jks

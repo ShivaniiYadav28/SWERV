@@ -20,7 +20,8 @@ from . import training
 from . import v2_features
 
 
-DEFAULT_MODEL_PATH = training.MODEL_DIR / "linear_regression.joblib"
+WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_MODEL_PATH = WORKSPACE_ROOT / "models" / "synthetic" / "gradient_boosting.joblib"
 EXPECTED_INPUT_COLUMNS = training.CATEGORICAL_COLUMNS + training.NUMERICAL_COLUMNS
 
 
@@ -28,10 +29,11 @@ class DeliveryModelService:
     """Keep one validated model loaded for the lifetime of the API process."""
 
     def __init__(self, model_path: Path | None = None) -> None:
-        configured_path = os.getenv("DELIVERY_MODEL_PATH")
-        self.model_path = model_path or (
-            Path(configured_path) if configured_path else DEFAULT_MODEL_PATH
-        )
+        configured_path = os.getenv("DELIVERY_MODEL_PATH", "").strip()
+        selected_path = model_path or (Path(configured_path) if configured_path else DEFAULT_MODEL_PATH)
+        if not selected_path.is_absolute():
+            selected_path = WORKSPACE_ROOT / selected_path
+        self.model_path = selected_path.resolve()
         self._model: Pipeline | None = None
         self._model_version: str | None = None
         self._feature_version = "v1"

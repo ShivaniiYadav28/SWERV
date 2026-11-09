@@ -33,9 +33,11 @@ returns an error and never substitutes a duration. Predictions are not saved
 to MongoDB, and this endpoint does not affect dispatch creation, assignment,
 or status updates.
 
-The Python workspace currently has no trained model artifact, so its prediction
-endpoint reports that predictions are unavailable until the training pipeline
-produces a valid model.
+The Python workspace includes a synthetic-trained Gradient Boosting model at
+the delivery-time service's default model path. The endpoint can return
+predictions when that artifact and its metadata validate. Because this model
+was trained on synthetic data, its predictions are a prototype and have not
+been validated against real SWERV operations.
 
 ## Agent assignment recommendations
 
@@ -125,3 +127,205 @@ activity, agent, and GPS data; review actions update only the selected alert.
 Demo scenarios are read from the isolated synthetic demo CSV. The anomaly model
 was trained on synthetic data, so its score is not validated against actual
 SWERV operations.
+
+# Proof of Delivery (POD)
+
+Agents can complete an in-transit delivery only after uploading a delivery
+photo, verifying the customer code, saving a customer signature, and recording
+device GPS or explicitly marking GPS unavailable. The API checks the assigned
+agent and each requirement. POD creation, the Delivered status change, the
+agent workload update, and the delivery activity event run in one MongoDB
+transaction. A completed POD has no edit or delete endpoint.
+
+Routes use the existing HttpOnly agent or Admin session cookie:
+
+- `GET /api/agent/deliveries/:id/pod` returns the agent's POD checklist.
+- `POST /api/agent/deliveries/:id/pod/photo` uploads JPEG, PNG, or WebP (up to
+  5 MB) as the raw request body. Send its MIME type as `Content-Type` and its
+  filename in `X-File-Name`.
+- `POST /api/agent/deliveries/:id/pod/signature` uploads a PNG signature (up to
+  1 MB) in the same raw-body format.
+- `POST /api/agent/deliveries/:id/pod/otp` requests customer verification.
+- `POST /api/agent/deliveries/:id/pod/otp/verify` accepts
+  `{ "otp": "123456" }`.
+- `POST /api/agent/deliveries/:id/pod/submit` submits either GPS fields
+  (`latitude`, `longitude`, optional `accuracyMeters`) or
+  `locationUnavailableReason` (`permission_denied`, `unsupported`, `timeout`,
+  or `not_available`). The server supplies the authoritative delivery time.
+- `GET /api/agent/deliveries/:id/pod/evidence/:kind` lets the assigned agent
+  view their evidence (`photo` or `signature`).
+- Admin only: `GET /api/admin/pod`, `GET /api/admin/pod/:dispatchId`, and
+  `GET /api/admin/pod/:dispatchId/evidence/:kind` provide read-only review.
+
+Photos and signatures are stored as files outside MongoDB, under
+`POD_STORAGE_DIR` (default `./private_uploads/pod` relative to the backend
+working directory). Keep this directory private, backed up, and excluded from
+Git. For production, mount a protected persistent volume and configure access
+and retention controls. Image reads require an authenticated owner or Admin;
+the directory is never served as a public static path.
+
+This repository does not currently configure an email or SMS provider. In
+production, OTP requests return HTTP 503 until a provider is connected; the
+service does not claim that a code was delivered. For local development only,
+set `POD_DEV_OTP_ENABLED=true` with `NODE_ENV=development`. The OTP endpoint
+then returns a clearly labelled test code that is not sent to the customer.
+The backend stores only a salted scrypt hash, expires codes after five minutes,
+limits verification attempts, and applies resend and endpoint rate limits. Keep
+`POD_DEV_OTP_ENABLED=false` outside local testing.
+
+For automated checks, run `npm test` and `npm run build` from `backend/`.
+
+### Resetting an agent password
+
+An authenticated Admin can reset an agent's login password with:
+
+```http
+POST /api/admin/agents/:id/reset-password
+Content-Type: application/json
+```
+
+```json
+{ "newPassword": "Aisha@123456" }
+```
+
+The password must be 12–72 characters, matching the existing agent password
+rules. The API uses the existing bcrypt password hashing service and returns
+only the agent ID and a success message. Operators and unauthenticated requests
+are rejected.
+
+## Real-time fleet updates
+
+The Express API and Socket.IO share the same HTTP server. Socket connections use
+the existing `swerv_access` and `swerv_agent_access` HttpOnly cookies. The
+server verifies the cookie against the active MongoDB user or agent before it
+assigns a room. Admins and Operators can join `fleet:monitors`, matching the
+existing authorization on the Live Fleet API. An agent is assigned only to
+`agent:<authenticated-agent-id>`. Clients cannot request room membership.
+
+Socket.IO uses the existing `CLIENT_URL` setting for its allowed browser origin;
+no new environment variable or credential is required.
+
+Events sent by the server:
+
+- `fleet:location` is sent only to `fleet:monitors` after an accepted location
+  is saved. Its payload contains the agent ID, coordinates and GPS measurements,
+  recorded/received timestamps, basic agent details, and a small active
+  dispatch summary. It does not contain customer details.
+- `dispatch:updated` is sent to fleet monitors and the rooms for the current and
+  previous assigned agents. Its payload is `{ dispatchId, status,
+  assignedAgentId }`. It is emitted only after the dispatch transaction commits,
+  including when POD completes a delivery.
+
+The Agent Portal browser tracker starts only while the authenticated agent has
+an active delivery and browser location permission. It sends a reading every
+20 seconds. The backend rejects readings older than two minutes and applies an
+atomic 15-second per-agent throttle. Accepted readings continue to use the
+existing `AgentLocation` history collection; the Agent also stores the last
+accepted server receipt time for throttling. When dispatch updates remove the
+agent's active delivery, the portal refreshes eligibility and stops its GPS
+watcher. The Live Fleet page applies socket updates immediately and retains a
+60-second API refresh as a fallback when the socket disconnects.
+
+For local verification, start the backend and frontend with `CLIENT_URL` set to
+the frontend origin, sign in as an Admin or Operator, then open Live Fleet. Sign
+in to the Agent Portal in another browser session, assign an active delivery,
+allow browser location, and start tracking. The new GPS marker should appear or
+move without a page refresh. Change the dispatch status or complete POD and
+verify the fleet and agent views refresh. Deny location permission to confirm
+that the rest of the Agent Portal remains usable.
+
+## Route optimization
+
+The Admin/Operator Route Optimization page works with the existing one-pickup,
+one-destination dispatch schema. It plans up to 12 active deliveries already
+assigned to one active agent. Pending requests are not attached to an agent yet;
+assign them through the existing dispatch workflow before planning a route. A
+request in `assigned` status contributes pickup and destination stops. A request
+in `picked_up` or `in_transit` contributes only its destination.
+
+The backend requests a road distance/time matrix and route geometry from OSRM.
+`ROUTING_SERVICE_BASE_URL` can point to an OSRM-compatible server; the example
+defaults to `https://router.project-osrm.org`. The public demo may be rate-limited
+or unavailable and follows fair-use restrictions, so use a self-hosted or
+contracted routing service for production reliability. OSRM estimates do not
+include live traffic. If the provider fails or cannot connect stops, the API
+returns an error and does not substitute straight-line distances or fabricated
+times.
+
+The ordering algorithm is a nearest-next-stop heuristic. It chooses the
+remaining eligible stop with the shortest provider-estimated travel time and
+always keeps each pickup before its delivery. It is quick and understandable,
+but does not guarantee the globally shortest route. The baseline is the
+agent's saved sequence when one exists, otherwise the dispatch creation order.
+If no fresh agent GPS position is available, the comparison starts at the first
+baseline stop; the page labels this assumption instead of presenting it as the
+agent's current location.
+
+Authenticated Admin and Operator endpoints:
+
+- `GET /api/route-optimization/agents/:agentId/deliveries` lists eligible
+  assigned deliveries and coordinate gaps without returning customer details.
+- `GET /api/route-optimization/agents/:agentId/plan` reads the saved sequence.
+- `POST /api/route-optimization/preview` accepts `{ "agentId": "...",
+  "dispatchRequestIds": ["..."] }` and returns baseline/optimized stops,
+  provider road distance/time, route geometry and calculated comparison.
+- `POST /api/route-optimization/apply` accepts the agent ID, selected dispatch
+  IDs and optimized `{ dispatchRequestId, stopType }` sequence. It rechecks
+  current assignment, active status, coordinates, complete stop membership and
+  pickup precedence before saving the sequence in `RoutePlan`.
+
+Applying a plan changes only that agent's saved route order. It does not assign
+dispatches or change their lifecycle statuses. The frontend asks for
+confirmation before calling the apply endpoint.
+
+## Notification Management
+
+Notifications are saved separately from dispatch activity and anomaly alert
+records. Each notification belongs to one user or one agent. API reads and
+updates always scope by both recipient type and authenticated recipient ID.
+Dispatch creation, assignment/reassignment, selected lifecycle changes, POD
+completion, agent availability changes, and newly saved real anomaly alerts
+create notifications. Synthetic anomaly demo alerts and GPS updates do not.
+
+Supported event types are `new_dispatch`, `dispatch_assigned`,
+`dispatch_reassigned`, `dispatch_status_changed`, `delivery_completed`,
+`anomaly_detected`, and `agent_status_changed`. Business-event notifications
+are written in the same MongoDB transaction where the originating flow uses a
+transaction. New real anomaly alerts and their notifications are also saved
+together. Duplicate anomaly detections do not create duplicate notifications.
+
+User-session endpoints for Admins and Operators:
+
+- `GET /api/notifications?page=1&limit=10&unreadOnly=true` lists only the
+  signed-in user's notifications. `unreadOnly` is optional.
+- `GET /api/notifications/unread-count` returns that user's unread count.
+- `PATCH /api/notifications/:id/read` marks one owned notification as read.
+- `PATCH /api/notifications/read-all` marks all of the signed-in user's
+  notifications as read.
+
+Agents use the same operations under `/api/agent/notifications` with their
+agent session cookie. A user session cannot access agent notifications, and an
+agent session cannot access user notifications. Clients do not provide a
+recipient ID for list or read operations.
+
+Socket.IO emits `notification:new` after notification persistence commits.
+Its payload contains `id`, `recipientType`, `recipientId`, `eventType`,
+`title`, `message`, `relatedEntityType`, `relatedEntityId`, `createdAt`, and
+`readAt`. Authenticated Admins and Operators join both `fleet:monitors` and
+their server-assigned `user:<userId>` room. Agents join only
+`agent:<agentId>`. Notifications are sent to the matching private recipient
+room, never to the fleet-wide room. The frontend refreshes from the API after
+socket reconnection; MongoDB remains the source of truth.
+
+Run backend tests from `backend/`:
+
+```powershell
+npx vitest run test/notification.test.ts test/notificationModel.test.ts test/realtime.test.ts test/anomalyDetection.test.ts
+```
+
+Frontend notification tests use the existing Node test runner through the
+installed backend TypeScript runner. From `frontend/`, run:
+
+```powershell
+..\backend\node_modules\.bin\tsx.cmd --test test/notifications.test.ts test/notificationBell.test.ts
+```

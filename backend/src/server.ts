@@ -1,4 +1,5 @@
 import './config/loadEnv.js';
+import { createServer } from 'node:http';
 import app from './app.js';
 import { connectDatabase } from './config/db.js';
 import { ensureAuthCollections } from './services/authService.js';
@@ -13,9 +14,15 @@ import {
   getDeliveryTrackingExpirationDays,
 } from './services/deliveryTrackingService.js';
 import { ensureAnomalyAlertIndexes } from './models/AnomalyAlert.js';
+import { ensureProofOfDeliveryCollections } from './services/proofOfDeliveryService.js';
+import { attachSocketServer } from './realtime/socketServer.js';
+import { ensureRoutePlanIndexes } from './models/RoutePlan.js';
+import { Notification } from './models/Notification.js';
+import { ensureAgentAttendanceCollections } from './services/agentAttendanceService.js';
 
 const port = Number(process.env.PORT ?? 5000);
 const mongoUri = process.env.MONGO_URI?.trim();
+const httpServer = createServer(app);
 
 async function startServer(): Promise<void> {
   if (!mongoUri || mongoUri === 'your_mongodb_connection_string') {
@@ -34,13 +41,18 @@ async function startServer(): Promise<void> {
   await connectDatabase(mongoUri);
   await ensureAuthCollections();
   await ensureAgentCollections();
+  await ensureAgentAttendanceCollections();
   await ensureDispatchRequestCollections();
   await ensureCustomerCollections();
   await ensureAgentLocationCollections();
   await ensureDeliveryTrackingCollections();
   await ensureAnomalyAlertIndexes();
+  await ensureProofOfDeliveryCollections();
+  await ensureRoutePlanIndexes();
+  await Notification.init();
+  attachSocketServer(httpServer, process.env.CLIENT_URL ?? 'http://localhost:5173');
 
-  app.listen(port, () => {
+  httpServer.listen(port, () => {
     console.info(`SWERV API listening on port ${port}`);
   });
 }

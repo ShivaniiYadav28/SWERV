@@ -17,6 +17,7 @@ import {
   parseLocationRequest,
   submitAgentLocationSchema,
 } from '../utils/agentLocationValidation.js';
+import { publishFleetLocation } from '../realtime/socketServer.js';
 
 export const generateAgentDeviceCredentialHandler: RequestHandler = async (req, res) => {
   const agentId = parseAgentId(req.params.id);
@@ -62,12 +63,17 @@ export const stopAgentBrowserGpsSessionHandler: RequestHandler = async (req, res
   res.json({ success: true, message: 'GPS session stopped.', data: null });
 };
 
-export const submitAgentLocationHandler: RequestHandler = async (req, res) => {
+async function submitLocation(req: Parameters<RequestHandler>[0], res: Parameters<RequestHandler>[1], requireActiveDelivery: boolean) {
   if (!req.agentId) throw new HttpError(401, 'Valid agent device credentials are required.');
   const input = parseLocationRequest(submitAgentLocationSchema, req.body);
-  const location = await recordAgentLocation(req.agentId, input);
-  res.status(201).json({ success: true, message: 'Agent location recorded.', data: { location } });
-};
+  const result = await recordAgentLocation(req.agentId, input, requireActiveDelivery);
+  publishFleetLocation(result.fleetLocation);
+  res.status(201).json({ success: true, message: 'Agent location recorded.', data: { location: result.location } });
+}
+
+export const submitAgentLocationHandler: RequestHandler = async (req, res) => submitLocation(req, res, false);
+
+export const submitAgentBrowserLocationHandler: RequestHandler = async (req, res) => submitLocation(req, res, true);
 
 export const listLatestAgentLocationsHandler: RequestHandler = async (_req, res) => {
   const locations = await getLatestAgentLocations();

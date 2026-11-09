@@ -145,9 +145,9 @@ function parsePythonResponse(value: unknown): PythonPredictionResponse | null {
 }
 
 async function requestPythonPrediction(input: PredictionInput): Promise<PredictionResult> {
+  const baseUrl = getMlServiceBaseUrl();
   let response: Response;
   try {
-    const baseUrl = getMlServiceBaseUrl();
     response = await fetch(`${baseUrl}/predict`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
@@ -155,7 +155,8 @@ async function requestPythonPrediction(input: PredictionInput): Promise<Predicti
       signal: AbortSignal.timeout(predictionTimeoutMs),
     });
   } catch (error) {
-    if (error instanceof HttpError) throw error;
+    const detail = error instanceof Error ? error.message : 'Unknown connection error';
+    console.error(`[delivery-time-prediction] Could not reach ${baseUrl}/predict: ${detail}`);
     throw new HttpError(503, 'Delivery time prediction service is unavailable.');
   }
 
@@ -171,9 +172,13 @@ async function requestPythonPrediction(input: PredictionInput): Promise<Predicti
 
   const prediction = parsePythonResponse(responseBody);
   if (!prediction) {
+    if (!response.ok) {
+      console.error(`[delivery-time-prediction] Model service returned HTTP ${response.status} with an invalid error response.`);
+    }
     throw new HttpError(502, 'Prediction service returned an invalid response.');
   }
   if (!response.ok) {
+    console.error(`[delivery-time-prediction] Model service returned HTTP ${response.status}: ${prediction.message}`);
     if (response.status === 503 && prediction.prediction_status === 'unavailable') {
       throw new HttpError(503, 'Delivery time prediction is currently unavailable.');
     }

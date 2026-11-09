@@ -11,6 +11,7 @@ import { User } from '../src/models/User.js';
 import { ensureAgentCollections } from '../src/services/agentService.js';
 import { ensureDispatchRequestCollections } from '../src/services/dispatchRequestService.js';
 import { createAccessToken } from '../src/utils/jwt.js';
+import bcrypt from 'bcryptjs';
 
 const agentInput = {
   name: 'Morgan Driver', email: 'morgan@example.com', phone: '+1 555 123 4567',
@@ -73,6 +74,60 @@ afterAll(async () => {
 });
 
 describe('agent delivery API', () => {
+  it('lets an Admin reset an agent password and stores only its bcrypt hash', async () => {
+    const agent = await createAgent();
+    await request(app)
+      .put(`/api/agents/${agent.id}/password`)
+      .set('Cookie', adminCookie)
+      .send({ password: 'OldAgentPass123!' })
+      .expect(200);
+    const newPassword = 'Aisha@123456';
+    const response = await request(app)
+      .post(`/api/admin/agents/${agent.id}/reset-password`)
+      .set('Cookie', adminCookie)
+      .send({ newPassword })
+      .expect(200);
+
+    expect(response.body).toMatchObject({ success: true, data: { agentId: agent.id } });
+    expect(JSON.stringify(response.body)).not.toContain(newPassword);
+    expect(JSON.stringify(response.body)).not.toContain('passwordHash');
+    const storedAgent = await Agent.findById(agent.id).select('+passwordHash');
+    expect(storedAgent?.passwordHash).not.toBe(newPassword);
+    expect(await bcrypt.compare(newPassword, storedAgent?.passwordHash ?? '')).toBe(true);
+    await login(agent.email, newPassword).expect(200);
+    await login(agent.email, 'OldAgentPass123!').expect(401);
+  });
+
+  it('rejects an invalid password or agent ID for password reset', async () => {
+    const agent = await createAgent();
+    await request(app)
+      .post(`/api/admin/agents/${agent.id}/reset-password`)
+      .set('Cookie', adminCookie)
+      .send({ newPassword: 'short' })
+      .expect(400);
+    await request(app)
+      .post('/api/admin/agents/not-an-id/reset-password')
+      .set('Cookie', adminCookie)
+      .send({ newPassword: 'Aisha@123456' })
+      .expect(400);
+    await request(app)
+      .post(`/api/admin/agents/${new mongoose.Types.ObjectId()}/reset-password`)
+      .set('Cookie', adminCookie)
+      .send({ newPassword: 'Aisha@123456' })
+      .expect(404);
+  });
+
+  it('requires authentication and the Admin role to reset an agent password', async () => {
+    const agent = await createAgent();
+    const endpoint = `/api/admin/agents/${agent.id}/reset-password`;
+    await request(app).post(endpoint).send({ newPassword: 'Aisha@123456' }).expect(401);
+    await request(app)
+      .post(endpoint)
+      .set('Cookie', operatorCookie)
+      .send({ newPassword: 'Aisha@123456' })
+      .expect(403);
+  });
+
   it('allows agent login with an admin-provisioned password and rejects invalid credentials', async () => {
     const agent = await createAgent();
     await request(app).put(`/api/agents/${agent.id}/password`).set('Cookie', adminCookie).send({ password: agentPassword }).expect(200);
@@ -125,16 +180,17 @@ describe('agent delivery API', () => {
     const firstCookie = (await login()).headers['set-cookie'][0].split(';')[0];
     const secondCookie = (await login('second@example.com')).headers['set-cookie'][0].split(';')[0];
     await request(app).patch(`/api/agent/deliveries/${id}/status`).set('Cookie', secondCookie).send({ status: 'picked_up' }).expect(404);
-    await request(app).patch(`/api/agent/deliveries/${id}/status`).set('Cookie', firstCookie).send({ status: 'delivered' }).expect(400);
+    await request(app).patch(`/api/agent/deliveries/${id}/status`).set('Cookie', firstCookie).send({ status: 'delivered' }).expect(409);
     await request(app).patch(`/api/agent/deliveries/${id}/status`).set('Cookie', firstCookie).send({ status: 'cancelled' }).expect(400);
     await request(app).patch(`/api/agent/deliveries/${id}/status`).set('Cookie', firstCookie).send({ status: 'picked_up' }).expect(200);
     await request(app).patch(`/api/agent/deliveries/${id}/status`).set('Cookie', firstCookie).send({ status: 'in_transit' }).expect(200);
-    await request(app).patch(`/api/agent/deliveries/${id}/status`).set('Cookie', firstCookie).send({ status: 'delivered' }).expect(200);
+    await request(app).patch(`/api/agent/deliveries/${id}/status`).set('Cookie', firstCookie).send({ status: 'delivered' }).expect(409);
     await request(app).patch(`/api/agent/deliveries/${id}/status`).set('Cookie', firstCookie).send({ status: 'in_transit' }).expect(400);
-    expect(await DispatchRequestActivity.countDocuments({ dispatchRequestId: id, actorType: 'agent', performedByAgent: firstAgent.id })).toBe(3);
+    expect(await DispatchRequestActivity.countDocuments({ dispatchRequestId: id, actorType: 'agent', performedByAgent: firstAgent.id })).toBe(2);
+    expect((await DispatchRequest.findById(id))?.status).toBe('in_transit');
     const history = await request(app).get('/api/agent/deliveries/history').set('Cookie', firstCookie).expect(200);
-    expect(history.body.data.deliveries.map((delivery: { _id: string }) => delivery._id)).toEqual([id]);
-    expect((await Agent.findById(firstAgent.id))?.activeDispatchCount).toBe(0);
+    expect(history.body.data.deliveries).toHaveLength(0);
+    expect((await Agent.findById(firstAgent.id))?.activeDispatchCount).toBe(1);
   });
 
   it('keeps admin and operator dispatch access while requiring an agent session for agent routes', async () => {

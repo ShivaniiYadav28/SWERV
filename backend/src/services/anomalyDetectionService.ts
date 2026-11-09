@@ -10,6 +10,8 @@ import { DispatchRequest } from '../models/DispatchRequest.js';
 import { DispatchRequestActivity } from '../models/DispatchRequestActivity.js';
 import { HttpError } from '../utils/httpError.js';
 import { getAnomalyDetectionServiceUrl } from '../config/anomalyDetectionService.js';
+import { createUserNotifications } from './notificationService.js';
+import { publishNotification } from '../realtime/socketServer.js';
 
 const timeoutMs = 8_000;
 const workspacePath = resolve(dirname(fileURLToPath(import.meta.url)), '../../../ml/anomaly_detection');
@@ -274,13 +276,12 @@ function deduplicationKey(mode: DetectionMode, type: string, entity: string, tim
   return createHash('sha256').update(`${mode}|${type}|${entity}|${timeWindow}`).digest('hex');
 }
 
-async function saveAlert(mode: DetectionMode, alert: Record<string, any>): Promise<boolean> {
+async function saveAlert(mode: DetectionMode, alert: Record<string, any>): Promise<{ inserted: boolean; notifications: Awaited<ReturnType<typeof createUserNotifications>> }> {
   const Model = mode === 'real' ? AnomalyAlert : AnomalyDemoAlert;
   const entity = alert.dispatch_id ?? alert.agent_id ?? alert.scenario_id ?? 'system';
   const evidenceTimestamp = alert.evidence_timestamp ?? null;
   const key = deduplicationKey(mode, alert.anomaly_type, String(entity), evidenceTimestamp);
-  try {
-    const result = await Model.updateOne({ deduplicationKey: key }, { $setOnInsert: {
+  const alertFields = {
     anomalyType: alert.anomaly_type,
     severity: ['low', 'medium', 'high', 'critical'].includes(alert.severity) ? alert.severity : 'medium',
     dispatchId: alert.dispatch_id ?? null,
@@ -298,11 +299,41 @@ async function saveAlert(mode: DetectionMode, alert: Record<string, any>): Promi
     detectionMode: mode,
     dataQualityNotes: alert.data_quality_notes ?? [],
     deduplicationKey: key,
-    } }, { upsert: true });
-    return result.upsertedCount > 0;
+  };
+  if (mode === 'synthetic_demo') {
+    try {
+      const result = await Model.updateOne({ deduplicationKey: key }, { $setOnInsert: alertFields }, { upsert: true });
+      return { inserted: result.upsertedCount > 0, notifications: [] };
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 11000) return { inserted: false, notifications: [] };
+      throw error;
+    }
+  }
+
+  const session = await DispatchRequest.startSession();
+  let wasInserted = false;
+  let notifications: Awaited<ReturnType<typeof createUserNotifications>> = [];
+  try {
+    await session.withTransaction(async () => {
+      const result = await Model.updateOne({ deduplicationKey: key }, { $setOnInsert: alertFields }, { upsert: true, session });
+      wasInserted = result.upsertedCount > 0;
+      if (wasInserted && result.upsertedId) {
+        notifications = await createUserNotifications(session, ['admin'], {
+          eventType: 'anomaly_detected',
+          title: `Anomaly detected: ${String(alert.anomaly_type).replaceAll('_', ' ')}`.slice(0, 120),
+          message: String(alert.explanation).slice(0, 500),
+          relatedEntityType: 'anomaly_alert',
+          relatedEntityId: result.upsertedId,
+        });
+      }
+    });
+    notifications.forEach(publishNotification);
+    return { inserted: wasInserted, notifications };
   } catch (error) {
-    if (error && typeof error === 'object' && 'code' in error && error.code === 11000) return false;
+    if (error && typeof error === 'object' && 'code' in error && error.code === 11000) return { inserted: false, notifications: [] };
     throw error;
+  } finally {
+    await session.endSession();
   }
 }
 
@@ -371,7 +402,7 @@ export async function runAnomalyDetection(mode: DetectionMode) {
     }
   });
   let savedAlerts = 0;
-  for (const alert of toSave) if (await saveAlert(mode, alert)) savedAlerts += 1;
+  for (const alert of toSave) if ((await saveAlert(mode, alert)).inserted) savedAlerts += 1;
   return { mode, modelName: body.model_name, modelVersion: body.model_version, trainingDataSource: 'synthetic', syntheticProvenance: body.synthetic_provenance, scenarioCount: scenarios.length, candidateCount: toSave.length, savedAlerts, duplicateAlertsSkipped: toSave.length - savedAlerts, limitations: body.rule_based_limitations };
 }
 

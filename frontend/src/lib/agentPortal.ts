@@ -1,7 +1,8 @@
-import { apiRequest } from './api'
+import { apiBlobRequest, apiRequest } from './api.ts'
 import type { AgentDelivery, AgentDeliveryDetails, AgentProfile } from '../types/agentDelivery'
+import type { PodLocation, PodStatus } from '../types/proofOfDelivery'
 
-export type AgentDeliveryStatus = 'picked_up' | 'in_transit' | 'delivered'
+export type AgentDeliveryStatus = 'picked_up' | 'in_transit'
 
 export type AgentGpsLocation = {
   latitude: number
@@ -85,4 +86,36 @@ export async function submitAgentGpsLocation(location: AgentGpsLocation): Promis
     method: 'POST',
     body: JSON.stringify(location),
   })
+}
+
+export async function getAgentPodStatus(id: string): Promise<PodStatus> {
+  const response = await apiRequest<PodStatus>(`/api/agent/deliveries/${encodeURIComponent(id)}/pod`)
+  if (!response.data) throw new Error('Proof of delivery status could not be loaded.')
+  return response.data
+}
+
+export async function uploadAgentPodImage(id: string, type: 'photo' | 'signature', file: Blob, fileName: string): Promise<void> {
+  await apiRequest(`/api/agent/deliveries/${encodeURIComponent(id)}/pod/${type}`, {
+    method: 'POST',
+    headers: { 'Content-Type': file.type, 'X-File-Name': encodeURIComponent(fileName) },
+    body: file,
+  })
+}
+
+export async function requestAgentPodOtp(id: string): Promise<{ deliveryMode: 'development_test_code'; developmentOtp: string; expiresAt: string }> {
+  const response = await apiRequest<{ deliveryMode: 'development_test_code'; developmentOtp: string; expiresAt: string }>(`/api/agent/deliveries/${encodeURIComponent(id)}/pod/otp`, { method: 'POST' })
+  if (!response.data) throw new Error('Customer verification code could not be created.')
+  return response.data
+}
+
+export async function verifyAgentPodOtp(id: string, otp: string): Promise<void> {
+  await apiRequest(`/api/agent/deliveries/${encodeURIComponent(id)}/pod/otp/verify`, { method: 'POST', body: JSON.stringify({ otp }) })
+}
+
+export async function submitAgentPod(id: string, location: PodLocation): Promise<void> {
+  await apiRequest(`/api/agent/deliveries/${encodeURIComponent(id)}/pod/submit`, { method: 'POST', body: JSON.stringify(location) })
+}
+
+export function getAgentPodImage(id: string, type: 'photo' | 'signature'): Promise<Blob> {
+  return apiBlobRequest(`/api/agent/deliveries/${encodeURIComponent(id)}/pod/evidence/${type}`)
 }

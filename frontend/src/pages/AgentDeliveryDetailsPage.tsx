@@ -3,9 +3,10 @@ import { ArrowLeft, Check, CheckCircle2, Clock3, Mail, MapPin, Package, Phone, T
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAgentAuth } from '../hooks/useAgentAuth'
 import { ApiError } from '../lib/api'
-import { getAgentDelivery, updateAgentDeliveryStatus, type AgentDeliveryStatus } from '../lib/agentPortal'
+import { getAgentDelivery, updateAgentDeliveryStatus } from '../lib/agentPortal'
 import { formatDeliveryDate, formatDeliveryStatus, formatPriority } from '../lib/agentUi'
 import type { AgentDelivery, AgentDeliveryDetails } from '../types/agentDelivery'
+import { ProofOfDeliveryWorkflow } from '../components/ProofOfDeliveryWorkflow'
 import './agent-portal.css'
 
 const deliverySteps: { status: AgentDelivery['status']; label: string }[] = [
@@ -15,16 +16,16 @@ const deliverySteps: { status: AgentDelivery['status']; label: string }[] = [
   { status: 'delivered', label: 'Delivered' },
 ]
 
-const nextStatuses: Partial<Record<AgentDelivery['status'], AgentDeliveryStatus>> = {
+type AgentProgressAction = 'picked_up' | 'in_transit'
+
+const nextStatuses: Partial<Record<AgentDelivery['status'], AgentProgressAction>> = {
   assigned: 'picked_up',
   picked_up: 'in_transit',
-  in_transit: 'delivered',
 }
 
-const actionLabels: Record<AgentDeliveryStatus, string> = {
+const actionLabels: Record<AgentProgressAction, string> = {
   picked_up: 'Mark package as picked up',
   in_transit: 'Start delivery route',
-  delivered: 'Mark as delivered',
 }
 
 export function AgentDeliveryDetailsPage() {
@@ -69,8 +70,6 @@ export function AgentDeliveryDetailsPage() {
     const delivery = details?.dispatchRequest
     const nextStatus = delivery ? nextStatuses[delivery.status] : undefined
     if (!delivery || !nextStatus || isUpdating) return
-    if (nextStatus === 'delivered' && !window.confirm('Confirm that this package has been delivered to the customer.')) return
-
     setIsUpdating(true)
     setActionError('')
     try {
@@ -86,6 +85,11 @@ export function AgentDeliveryDetailsPage() {
     } finally {
       setIsUpdating(false)
     }
+  }
+
+  async function refreshAfterPod() {
+    try { setDetails(await getAgentDelivery(id)) }
+    catch (cause) { setActionError(cause instanceof Error ? cause.message : 'Updated delivery details could not be loaded.') }
   }
 
   const delivery = details?.dispatchRequest
@@ -118,9 +122,8 @@ export function AgentDeliveryDetailsPage() {
           <div className="agent-action-area">
             {actionError && <div className="agent-action-error" role="alert">{actionError}</div>}
             <button className="agent-primary-action" type="button" onClick={() => void updateStatus()} disabled={isUpdating}>
-              {isUpdating ? <><span className="spinner spinner-small" />Updating delivery…</> : <>{nextStatus === 'delivered' ? <CheckCircle2 size={17} /> : <Truck size={17} />}{actionLabels[nextStatus]}</>}
+              {isUpdating ? <><span className="spinner spinner-small" />Updating delivery…</> : <><Truck size={17} />{actionLabels[nextStatus]}</>}
             </button>
-            {nextStatus === 'delivered' && <small className="agent-action-hint"><CheckCircle2 size={13} />You’ll confirm before completing this delivery.</small>}
           </div>
         ) : delivery.status === 'delivered' ? (
           <div className="agent-complete-message"><CheckCircle2 size={17} />Delivered on {formatDeliveryDate(delivery.updatedAt)}. This delivery is complete.</div>
@@ -128,6 +131,8 @@ export function AgentDeliveryDetailsPage() {
           <div className="agent-complete-message"><Clock3 size={17} />No further delivery actions are available for this request.</div>
         )}
       </section>
+
+      {delivery.status !== 'delivered' && <ProofOfDeliveryWorkflow dispatchId={delivery._id} dispatchStatus={delivery.status} onComplete={() => void refreshAfterPod()} />}
 
       <section className="agent-detail-grid grid grid-cols-1 gap-3 md:grid-cols-2">
         <article className="agent-info-panel">

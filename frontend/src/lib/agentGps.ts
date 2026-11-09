@@ -1,11 +1,25 @@
 import type { AgentGpsLocation } from './agentPortal'
 
-export function toGpsLocation(position: GeolocationPosition): AgentGpsLocation | null {
+export function shouldAutomaticallyStartGps(
+  hasActiveDelivery: boolean,
+  isEligibilityLoading: boolean,
+  wasManuallyStopped: boolean,
+): boolean {
+  return hasActiveDelivery && !isEligibilityLoading && !wasManuallyStopped
+}
+
+const maximumGpsAgeMs = 2 * 60_000
+const maximumFutureGpsTimeMs = 5 * 60_000
+
+export function toGpsLocation(position: GeolocationPosition, now = Date.now()): AgentGpsLocation | null {
   const { latitude, longitude, accuracy, speed, heading } = position.coords
   if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) return null
   if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) return null
 
-  const recordedAt = Number.isFinite(position.timestamp) ? position.timestamp : Date.now()
+  const recordedAt = position.timestamp
+  if (!Number.isFinite(recordedAt) || recordedAt <= 0) return null
+  if (now - recordedAt > maximumGpsAgeMs || recordedAt - now > maximumFutureGpsTimeMs) return null
+
   return {
     latitude,
     longitude,

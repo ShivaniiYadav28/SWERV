@@ -5,6 +5,7 @@ import request from 'supertest';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import app from '../src/app.js';
 import { AnomalyAlert, AnomalyDemoAlert } from '../src/models/AnomalyAlert.js';
+import { Notification } from '../src/models/Notification.js';
 import { DispatchRequest } from '../src/models/DispatchRequest.js';
 import { User } from '../src/models/User.js';
 import { createAccessToken } from '../src/utils/jwt.js';
@@ -51,7 +52,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   vi.unstubAllGlobals();
   stubPythonService();
-  await Promise.all([User.deleteMany({}), AnomalyAlert.deleteMany({}), AnomalyDemoAlert.deleteMany({})]);
+  await Promise.all([User.deleteMany({}), AnomalyAlert.deleteMany({}), AnomalyDemoAlert.deleteMany({}), Notification.deleteMany({})]);
   const [admin, operator] = await User.create([
     { name: 'Anomaly Admin', email: 'anomaly-admin@example.com', password: 'CorrectHorse9!', role: 'admin' },
     { name: 'Anomaly Operator', email: 'anomaly-operator@example.com', password: 'CorrectHorse9!', role: 'operator' },
@@ -100,6 +101,7 @@ describe('Admin anomaly APIs', () => {
     const demoCount = await AnomalyDemoAlert.countDocuments();
     expect(demoCount).toBeGreaterThan(0);
     expect(await AnomalyAlert.countDocuments()).toBe(0);
+    expect(await Notification.countDocuments({ eventType: 'anomaly_detected' })).toBe(0);
     const modelAlert = await AnomalyDemoAlert.findOne().lean();
     expect(modelAlert?.detectionMethod).toBe('machine_learning');
     expect(modelAlert?.modelProvenance).toContain('Synthetic test model');
@@ -163,6 +165,12 @@ describe('Admin anomaly APIs', () => {
     expect(payload).not.toContain('Private package description');
     expect(await AnomalyAlert.countDocuments({ dataSource: 'real' })).toBeGreaterThan(0);
     expect(await AnomalyDemoAlert.countDocuments()).toBe(0);
+    expect(await Notification.countDocuments({ recipientType: 'user', recipientId: (await User.findOne({ role: 'admin' }))?._id, eventType: 'anomaly_detected' })).toBeGreaterThan(0);
+    expect(await Notification.countDocuments({ recipientType: 'user', recipientId: (await User.findOne({ role: 'operator' }))?._id, eventType: 'anomaly_detected' })).toBe(0);
+
+    const previousNotificationCount = await Notification.countDocuments({ eventType: 'anomaly_detected' });
+    await request(app).post('/api/anomaly-detection/detect').set('Cookie', adminCookie).send({ mode: 'real' }).expect(200);
+    expect(await Notification.countDocuments({ eventType: 'anomaly_detected' })).toBe(previousNotificationCount);
   });
 
   it('validates alert filters, IDs, and review statuses', async () => {

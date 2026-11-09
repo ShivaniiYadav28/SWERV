@@ -3,6 +3,7 @@ import mongoose, { type ClientSession } from 'mongoose';
 import { Agent, type AgentStatus } from '../models/Agent.js';
 import { AgentActivity, type AgentEventType } from '../models/AgentActivity.js';
 import { HttpError } from '../utils/httpError.js';
+import { createUserNotifications, type NotificationPayload } from './notificationService.js';
 
 type AgentInput = {
   name: string;
@@ -92,7 +93,14 @@ export async function changeAgentStatus(id: string, status: AgentStatus, perform
     agent.status = status;
     await agent.save({ session });
     await recordActivity(session, agent._id, performedBy, 'status_changed', `Status changed from ${previousStatus} to ${status}.`, { status: previousStatus }, { status });
-    return agent;
+    const notifications: NotificationPayload[] = await createUserNotifications(session, ['admin', 'operator'], {
+      eventType: 'agent_status_changed',
+      title: 'Agent status changed',
+      message: `Agent ${agent.agentCode} status changed from ${previousStatus.replaceAll('_', ' ')} to ${status.replaceAll('_', ' ')}.`,
+      relatedEntityType: 'agent',
+      relatedEntityId: agent._id,
+    });
+    return { agent, notifications };
   });
 }
 
@@ -103,7 +111,11 @@ export async function archiveAgent(id: string, performedBy: string) {
     agent.isActive = false;
     await agent.save({ session });
     await recordActivity(session, agent._id, performedBy, 'agent_archived', 'Agent archived.', { isActive: true }, { isActive: false });
-    return agent;
+    const notifications = await createUserNotifications(session, ['admin', 'operator'], {
+      eventType: 'agent_status_changed', title: 'Agent archived',
+      message: `Agent ${agent.agentCode} was archived.`, relatedEntityType: 'agent', relatedEntityId: agent._id,
+    });
+    return { agent, notifications };
   });
 }
 
@@ -124,7 +136,11 @@ export async function restoreAgent(id: string, performedBy: string) {
       { isActive: false },
       { isActive: true },
     );
-    return agent;
+    const notifications = await createUserNotifications(session, ['admin', 'operator'], {
+      eventType: 'agent_status_changed', title: 'Agent restored',
+      message: `Agent ${agent.agentCode} was restored.`, relatedEntityType: 'agent', relatedEntityId: agent._id,
+    });
+    return { agent, notifications };
   });
 }
 

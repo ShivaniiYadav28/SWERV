@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { adminDashboard } from '../controllers/authController.js';
+import { resetAgentPasswordHandler } from '../controllers/agentAuthController.js';
 import { requireAuth } from '../middleware/authMiddleware.js';
 import { allowRoles } from '../middleware/roleMiddleware.js';
 import {
@@ -15,5 +16,6 @@ router.get('/users/:id', getUserHandler);
 router.post('/users', createUserHandler);
 router.patch('/users/:id/role', changeUserRoleHandler);
 router.patch('/users/:id/status', changeUserStatusHandler);
+router.post('/agents/:id/reset-password', resetAgentPasswordHandler);
 
 export default router;

@@ -44,6 +44,7 @@ const agentSchema = new Schema(
       maxOrders: { type: Number, required: true, min: 1, max: 10_000 },
     },
     activeDispatchCount: { type: Number, required: true, min: 0, default: 0 },
+    lastLocationReceivedAt: { type: Date, default: null, select: false },
     capabilities: {
       type: [{ type: String, enum: agentCapabilities }],
       default: [],

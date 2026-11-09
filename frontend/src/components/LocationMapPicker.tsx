@@ -1,7 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useMap, useMapEvents, MapContainer, Marker, TileLayer, ZoomControl } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { parseManualCoordinates } from '../lib/dispatchCoordinateSelection'
 
 export type MapPoint = { latitude: number; longitude: number }
 
@@ -44,6 +45,19 @@ function RefreshMapSize() {
   return null
 }
 
+function FocusMapPoint({ point }: { point: MapPoint | null }) {
+  const map = useMap()
+  const latitude = point?.latitude
+  const longitude = point?.longitude
+
+  useEffect(() => {
+    if (latitude === undefined || longitude === undefined) return
+    map.flyTo([latitude, longitude], Math.max(map.getZoom(), 13), { animate: true, duration: 0.5 })
+  }, [map, latitude, longitude])
+
+  return null
+}
+
 function MapClickSelector({ onSelect }: { onSelect: (point: MapPoint) => void }) {
   useMapEvents({
     click(event) {
@@ -62,9 +76,36 @@ export function LocationMapPicker({
   point: MapPoint | null
   onChange: (point: MapPoint | null) => void
 }) {
+  const [latitudeText, setLatitudeText] = useState(point?.latitude.toString() ?? '')
+  const [longitudeText, setLongitudeText] = useState(point?.longitude.toString() ?? '')
+  const [coordinateError, setCoordinateError] = useState('')
   const mapCenter: [number, number] = point
     ? [point.latitude, point.longitude]
     : [20, 0]
+
+  function setManualLocation() {
+    const result = parseManualCoordinates(latitudeText, longitudeText)
+    if (!result.point) {
+      setCoordinateError(result.error)
+      return
+    }
+    setCoordinateError('')
+    onChange(result.point)
+  }
+
+  function handleMapSelect(selectedPoint: MapPoint) {
+    setLatitudeText(selectedPoint.latitude.toString())
+    setLongitudeText(selectedPoint.longitude.toString())
+    setCoordinateError('')
+    onChange(selectedPoint)
+  }
+
+  function clearLocation() {
+    setLatitudeText('')
+    setLongitudeText('')
+    setCoordinateError('')
+    onChange(null)
+  }
 
   return (
     <div className="mt-3 rounded-lg border border-[#373238] bg-[#1b1a1d] p-3">
@@ -80,11 +121,41 @@ export function LocationMapPicker({
           )}
         </div>
         {point && (
-          <button type="button" className="dispatch-coordinate-clear" onClick={() => onChange(null)}>
+          <button type="button" className="dispatch-coordinate-clear" onClick={clearLocation}>
             Clear point
           </button>
         )}
       </div>
+      <div className="dispatch-coordinate-inputs">
+        <label>
+          Latitude
+          <input
+            type="number"
+            step="any"
+            min="-90"
+            max="90"
+            value={latitudeText}
+            onChange={(event) => { setLatitudeText(event.target.value); setCoordinateError('') }}
+            aria-label={`${label} latitude`}
+            aria-invalid={!!coordinateError}
+          />
+        </label>
+        <label>
+          Longitude
+          <input
+            type="number"
+            step="any"
+            min="-180"
+            max="180"
+            value={longitudeText}
+            onChange={(event) => { setLongitudeText(event.target.value); setCoordinateError('') }}
+            aria-label={`${label} longitude`}
+            aria-invalid={!!coordinateError}
+          />
+        </label>
+        <button type="button" className="dispatch-coordinate-set" onClick={setManualLocation}>Set Location</button>
+      </div>
+      {coordinateError && <p className="dispatch-coordinate-error" role="alert">{coordinateError}</p>}
       <p className="my-2 text-[9px] leading-relaxed text-[#817a83]">Click the map to set the exact point. The address is not used to guess coordinates.</p>
       <div className="dispatch-location-map-frame">
         <MapContainer
@@ -100,7 +171,8 @@ export function LocationMapPicker({
           />
           <ZoomControl position="bottomright" />
           <RefreshMapSize />
-          <MapClickSelector onSelect={onChange} />
+          <FocusMapPoint point={point} />
+          <MapClickSelector onSelect={handleMapSelect} />
           {point && (
             <Marker
               position={[point.latitude, point.longitude]}

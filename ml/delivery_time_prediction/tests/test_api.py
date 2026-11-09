@@ -3,10 +3,12 @@
 import asyncio
 import hashlib
 import json
+import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import joblib
 import numpy as np
@@ -23,6 +25,10 @@ from src.model_service import DeliveryModelService
 from src.schemas import DeliveryPredictionRequest
 from src import training
 from src.training import create_preprocessor
+
+
+WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
+SYNTHETIC_REPORT_PATH = WORKSPACE_ROOT / "data" / "processed" / "synthetic_training_evaluation_report.json"
 
 
 VALID_REQUEST = {
@@ -112,6 +118,50 @@ class ApiTests(unittest.TestCase):
         service = DeliveryModelService(missing_path)
         self.assertFalse(service.available)
         self.assertIsNone(service.model_version)
+
+    def test_default_model_is_the_report_selected_synthetic_artifact(self) -> None:
+        report = json.loads(SYNTHETIC_REPORT_PATH.read_text(encoding="utf-8"))
+        selected_artifact = Path(report["best_model_artifact"]).resolve()
+        with patch.dict(os.environ, {}, clear=True):
+            service = DeliveryModelService()
+
+        self.assertEqual(service.model_path, selected_artifact)
+        self.assertTrue(service.available)
+        self.assertEqual(service.model_version, report["best_model_version"])
+        self.assertIn("synthetic", service.model_version or "")
+
+    def test_synthetic_artifact_loads_from_absolute_and_package_relative_paths(self) -> None:
+        report = json.loads(SYNTHETIC_REPORT_PATH.read_text(encoding="utf-8"))
+        selected_artifact = Path(report["best_model_artifact"]).resolve()
+        relative_artifact = Path("models/synthetic/gradient_boosting.joblib")
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            original_directory = Path.cwd()
+            try:
+                os.chdir(temporary_directory)
+                absolute_service = DeliveryModelService(selected_artifact)
+                relative_service = DeliveryModelService(relative_artifact)
+            finally:
+                os.chdir(original_directory)
+
+        self.assertTrue(absolute_service.available)
+        self.assertTrue(relative_service.available)
+        self.assertEqual(absolute_service.model_version, report["best_model_version"])
+        self.assertEqual(relative_service.model_version, report["best_model_version"])
+
+    def test_default_synthetic_artifact_serves_health_and_prediction(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            service = DeliveryModelService()
+        app.dependency_overrides[get_model_service] = lambda: service
+
+        health_response = call_api("GET", "/health")
+        prediction_response = call_api("POST", "/predict", json=VALID_REQUEST)
+
+        self.assertEqual(health_response.status_code, 200)
+        self.assertTrue(health_response.json()["model_available"])
+        self.assertIn("synthetic", health_response.json()["model_version"])
+        self.assertEqual(prediction_response.status_code, 200)
+        self.assertEqual(prediction_response.json()["prediction_status"], "available")
+        self.assertGreater(prediction_response.json()["predicted_duration_minutes"], 0)
 
     def test_corrupt_model_artifact_is_not_loaded(self) -> None:
         corrupt_path = Path(self.temporary_directory.name) / "corrupt.joblib"

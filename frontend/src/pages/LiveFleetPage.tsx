@@ -16,11 +16,12 @@ import { useAuth } from '../hooks/useAuth'
 import { getLatestAgentLocations } from '../lib/agentLocations'
 import { agentStatuses, type AgentStatus } from '../types/agent'
 import type { AgentLocation } from '../types/agentLocation'
+import { connectRealtime, dispatchUpdateEvent, fleetLocationEvent } from '../lib/realtime'
 import '../App.css'
 import './live-fleet.css'
 import 'leaflet/dist/leaflet.css'
 
-const refreshInterval = 15_000
+const refreshInterval = 60_000
 const staleAfter = 2 * 60_000
 
 const statusLabels: Record<AgentStatus, string> = {
@@ -81,6 +82,7 @@ export function LiveFleetPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<AgentStatus | ''>('')
   const [selectedAgentId, setSelectedAgentId] = useState('')
+  const [socketConnected, setSocketConnected] = useState(false)
   const requestInProgress = useRef(false)
   const isMounted = useRef(false)
   const firstRequestComplete = useRef(false)
@@ -120,6 +122,34 @@ export function LiveFleetPage() {
       isMounted.current = false
       window.clearTimeout(initialRequest)
       window.clearInterval(interval)
+    }
+  }, [refreshLocations])
+
+  useEffect(() => {
+    const socket = connectRealtime()
+    const onConnect = () => setSocketConnected(true)
+    const onDisconnect = () => setSocketConnected(false)
+    const onLocation = (location: AgentLocation) => {
+      setLocations((current) => {
+        const known = current.some((item) => item.agentId === location.agentId)
+        return known
+          ? current.map((item) => item.agentId === location.agentId ? location : item)
+          : [location, ...current]
+      })
+      setLastRefreshAt(new Date())
+    }
+    const onDispatchUpdate = () => { void refreshLocations() }
+
+    socket.on('connect', onConnect)
+    socket.on('disconnect', onDisconnect)
+    socket.on(fleetLocationEvent, onLocation)
+    socket.on(dispatchUpdateEvent, onDispatchUpdate)
+    return () => {
+      socket.off('connect', onConnect)
+      socket.off('disconnect', onDisconnect)
+      socket.off(fleetLocationEvent, onLocation)
+      socket.off(dispatchUpdateEvent, onDispatchUpdate)
+      socket.disconnect()
     }
   }, [refreshLocations])
 
@@ -172,7 +202,7 @@ export function LiveFleetPage() {
         <div className="content-wrap live-fleet-content">
           <section className="live-fleet-heading">
             <div><div className="eyebrow">FLEET OPERATIONS <span className="eyebrow-dot" /> LIVE TRACKING</div><h1>Live Fleet</h1><p className="page-subtitle">Latest reported agent locations and current fleet status.</p></div>
-            <div className="live-fleet-refresh"><div className="live-fleet-refreshed">{lastRefreshAt ? <>Last refreshed <strong>{formatDate(lastRefreshAt.toISOString())}</strong></> : 'Waiting for first update'}</div><button className="dispatch-create-button" type="button" onClick={() => void refreshLocations()} disabled={isRefreshing}><RefreshCw size={15} className={isRefreshing ? 'refresh-spinning' : ''} />{isRefreshing ? 'Refreshing…' : 'Refresh'}</button></div>
+            <div className="live-fleet-refresh"><div className="live-fleet-refreshed"><strong>{socketConnected ? 'Live updates connected' : 'Reconnecting to live updates'}</strong><br />{lastRefreshAt ? <>Last refreshed <strong>{formatDate(lastRefreshAt.toISOString())}</strong></> : 'Waiting for first update'}</div><button className="dispatch-create-button" type="button" onClick={() => void refreshLocations()} disabled={isRefreshing}><RefreshCw size={15} className={isRefreshing ? 'refresh-spinning' : ''} />{isRefreshing ? 'Refreshing…' : 'Refresh'}</button></div>
           </section>
 
           {loadError && <div className="live-fleet-alert" role="alert"><span>{locations.length ? `Could not refresh locations: ${loadError}` : loadError}</span><button type="button" onClick={() => void refreshLocations()} disabled={isRefreshing}>{locations.length ? 'Retry' : 'Try again'}</button></div>}
@@ -246,10 +276,10 @@ function MapViewport({ locations, selectedLocation }: { locations: AgentLocation
 }
 
 function AgentPopup({ location }: { location: AgentLocation }) {
-  return <div className="live-fleet-popup"><strong>{location.agent.name}</strong><span>{location.agent.agentCode} · {statusLabels[location.agent.status]}</span><span>{location.agent.vehicle.vehicleType} · {location.agent.vehicle.registrationNumber}</span><span>Coordinates: {location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</span><span>Speed: {location.speed == null ? '—' : `${location.speed.toFixed(1)} m/s`} · Accuracy: {location.accuracy == null ? '—' : `${Math.round(location.accuracy)} m`}</span><span>GPS recorded: {formatDate(location.recordedAt)}</span></div>
+  return <div className="live-fleet-popup"><strong>{location.agent.name}</strong><span>{location.agent.agentCode} · {statusLabels[location.agent.status]}</span><span>{location.agent.vehicle.vehicleType} · {location.agent.vehicle.registrationNumber}</span><span>Coordinates: {location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</span><span>Speed: {location.speed == null ? '—' : `${location.speed.toFixed(1)} m/s`} · Accuracy: {location.accuracy == null ? '—' : `${Math.round(location.accuracy)} m`}</span><span>GPS recorded: {formatDate(location.recordedAt)}</span>{location.activeDispatch && <span>Active delivery: {location.activeDispatch.status} · {location.activeDispatch.priority}</span>}</div>
 }
 
 function SelectedAgentDetails({ location }: { location: AgentLocation }) {
   const stale = isLocationStale(location)
-  return <section className="live-fleet-selected-details"><div className="live-fleet-selected-heading"><div><span className="eyebrow">SELECTED AGENT</span><h3>{location.agent.name}</h3><span>{location.agent.agentCode} · {location.agent.vehicle.manufacturer} {location.agent.vehicle.model}</span></div><span className={`live-fleet-status status-${location.agent.status}`}>{statusLabels[location.agent.status]}</span></div><div className="live-fleet-location-facts"><div><small>GPS recorded</small><strong className={stale ? 'stale-text' : ''}>{formatDate(location.recordedAt)}{stale && ' · Stale'}</strong></div><div><small>Received by server</small><strong>{formatDate(location.receivedAt)}</strong></div><div><small>Coordinates</small><strong>{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</strong></div><div><small>Speed / accuracy</small><strong>{location.speed == null ? '—' : `${location.speed.toFixed(1)} m/s`} / {location.accuracy == null ? '—' : `${Math.round(location.accuracy)} m`}</strong></div></div></section>
+  return <section className="live-fleet-selected-details"><div className="live-fleet-selected-heading"><div><span className="eyebrow">SELECTED AGENT</span><h3>{location.agent.name}</h3><span>{location.agent.agentCode} · {location.agent.vehicle.manufacturer} {location.agent.vehicle.model}</span></div><span className={`live-fleet-status status-${location.agent.status}`}>{statusLabels[location.agent.status]}</span></div><div className="live-fleet-location-facts"><div><small>GPS recorded</small><strong className={stale ? 'stale-text' : ''}>{formatDate(location.recordedAt)}{stale && ' · Stale'}</strong></div><div><small>Received by server</small><strong>{formatDate(location.receivedAt)}</strong></div><div><small>Coordinates</small><strong>{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</strong></div><div><small>Speed / accuracy</small><strong>{location.speed == null ? '—' : `${location.speed.toFixed(1)} m/s`} / {location.accuracy == null ? '—' : `${Math.round(location.accuracy)} m`}</strong></div><div><small>Active delivery</small><strong>{location.activeDispatch ? `${location.activeDispatch.status} · ${location.activeDispatch.priority}` : 'None'}</strong></div></div></section>
 }

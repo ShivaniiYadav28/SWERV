@@ -677,7 +677,7 @@ describe('dispatch request foundation', () => {
       .patch(`/api/dispatch-requests/${dispatchRequest._id}/status`)
       .set('Cookie', adminCookie)
       .send({ status: 'delivered' })
-      .expect(400);
+      .expect(409);
     await request(app)
       .patch(`/api/dispatch-requests/${dispatchRequest._id}/status`)
       .set('Cookie', adminCookie)

@@ -16,6 +16,8 @@ type LocationInput = {
 };
 
 export const agentBrowserGpsSessionDurationMs = 8 * 60 * 60 * 1_000;
+export const agentLocationMinimumIntervalMs = 15_000;
+export const agentLocationMaximumAgeMs = 2 * 60_000;
 
 async function runTransaction<T>(work: (session: mongoose.ClientSession) => Promise<T>): Promise<T> {
   const session = await mongoose.startSession();
@@ -52,7 +54,11 @@ export async function generateAgentDeviceCredential(agentId: string) {
   });
 }
 
-async function ensureAgentCanReportLocation(agentId: string, session: mongoose.ClientSession) {
+async function ensureAgentCanReportLocation(
+  agentId: string,
+  session: mongoose.ClientSession,
+  requireActiveDelivery = false,
+) {
   const activeAgent = await Agent.findOne({ _id: agentId, isActive: true })
     .select('status').session(session);
   if (!activeAgent) throw new HttpError(404, 'Active agent not found.');
@@ -60,14 +66,17 @@ async function ensureAgentCanReportLocation(agentId: string, session: mongoose.C
     assignedAgent: agentId,
     status: { $in: ['assigned', 'picked_up', 'in_transit'] },
   }).session(session);
-  if (activeAgent.status !== 'on_duty' && !hasActiveDelivery) {
-    throw new HttpError(403, 'Location updates are allowed only while on duty or assigned to an active delivery.');
+  if (!hasActiveDelivery && (requireActiveDelivery || activeAgent.status !== 'on_duty')) {
+    throw new HttpError(403, requireActiveDelivery
+      ? 'Browser GPS is available only during an active delivery.'
+      : 'Location updates are allowed only while on duty or assigned to an active delivery.');
   }
+  return activeAgent;
 }
 
 export async function createAgentBrowserGpsCredential(agentId: string) {
   return runTransaction(async (session) => {
-    await ensureAgentCanReportLocation(agentId, session);
+    await ensureAgentCanReportLocation(agentId, session, true);
     const token = `swerv_agent_gps_${randomBytes(32).toString('base64url')}`;
     const tokenHash = createHash('sha256').update(token).digest('hex');
     const expiresAt = new Date(Date.now() + agentBrowserGpsSessionDurationMs);
@@ -104,15 +113,60 @@ export async function revokeAgentDeviceCredentials(agentId: string) {
   return { revokedCount: result.modifiedCount };
 }
 
-export async function recordAgentLocation(agentId: string, input: LocationInput) {
+export async function recordAgentLocation(agentId: string, input: LocationInput, requireActiveDelivery = false) {
+  const now = new Date();
+  if (now.getTime() - input.recordedAt.getTime() > agentLocationMaximumAgeMs) {
+    throw new HttpError(400, 'Location update is too old. Send a fresh GPS reading.');
+  }
   return runTransaction(async (session) => {
-    await ensureAgentCanReportLocation(agentId, session);
+    const agent = await ensureAgentCanReportLocation(agentId, session, requireActiveDelivery);
+    const cutoff = new Date(now.getTime() - agentLocationMinimumIntervalMs);
+    const throttle = await Agent.updateOne({
+      _id: agentId,
+      isActive: true,
+      $or: [
+        { lastLocationReceivedAt: { $exists: false } },
+        { lastLocationReceivedAt: null },
+        { lastLocationReceivedAt: { $lte: cutoff } },
+      ],
+    }, { $set: { lastLocationReceivedAt: now } }, { session });
+    if (!throttle.matchedCount) throw new HttpError(429, 'Location update received too soon. Wait before sending another GPS reading.');
 
     const [location] = await AgentLocation.create(
-      [{ agentId, ...input, receivedAt: new Date() }],
+      [{ agentId, ...input, receivedAt: now }],
       { session },
     );
-    return location;
+    const [activeDispatch, agentDetails] = await Promise.all([
+      DispatchRequest.findOne({ assignedAgent: agentId, status: { $in: ['assigned', 'picked_up', 'in_transit'] } })
+        .select('_id status priority').sort({ updatedAt: -1 }).session(session).lean(),
+      Agent.findById(agentId).select('_id agentCode name status vehicle').session(session).lean(),
+    ]);
+    if (!agentDetails) throw new HttpError(404, 'Active agent not found.');
+    return {
+      location,
+      fleetLocation: {
+        agentId,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        ...(location.accuracy == null ? {} : { accuracy: location.accuracy }),
+        ...(location.speed == null ? {} : { speed: location.speed }),
+        ...(location.heading == null ? {} : { heading: location.heading }),
+        recordedAt: location.recordedAt.toISOString(),
+        receivedAt: location.receivedAt.toISOString(),
+        agent: {
+          _id: agentDetails._id.toString(),
+          agentCode: agentDetails.agentCode,
+          name: agentDetails.name,
+          status: agentDetails.status,
+          vehicle: agentDetails.vehicle,
+        },
+        activeDispatch: activeDispatch ? {
+          _id: activeDispatch._id.toString(),
+          status: activeDispatch.status,
+          priority: activeDispatch.priority,
+        } : null,
+      },
+    };
   });
 }
 
@@ -129,6 +183,23 @@ export async function getLatestAgentLocations() {
         as: 'agent',
       },
     },
+    {
+      $lookup: {
+        from: DispatchRequest.collection.name,
+        let: { assignedAgentId: '$agentId' },
+        pipeline: [
+          { $match: { $expr: { $and: [
+            { $eq: ['$assignedAgent', '$$assignedAgentId'] },
+            { $in: ['$status', ['assigned', 'picked_up', 'in_transit']] },
+          ] } } },
+          { $sort: { updatedAt: -1 } },
+          { $limit: 1 },
+          { $project: { _id: 1, status: 1, priority: 1 } },
+        ],
+        as: 'activeDispatch',
+      },
+    },
+    { $set: { activeDispatch: { $ifNull: [{ $first: '$activeDispatch' }, null] } } },
     { $unwind: '$agent' },
     { $match: { 'agent.isActive': true } },
     { $sort: { receivedAt: -1 } },
@@ -143,6 +214,7 @@ export async function getLatestAgentLocations() {
         recordedAt: 1,
         receivedAt: 1,
         agent: { _id: 1, agentCode: 1, name: 1, status: 1, vehicle: 1 },
+        activeDispatch: 1,
       },
     },
   ]);

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { updateDispatchLocationPoint } from '../src/lib/dispatchCoordinateSelection.ts'
+import { parseManualCoordinates, updateDispatchLocationPoint } from '../src/lib/dispatchCoordinateSelection.ts'
 
 const locations = {
   pickup: {
@@ -12,6 +12,22 @@ const locations = {
 }
 
 describe('dispatch map coordinate selection', () => {
+  it('accepts valid manual coordinates including geographic boundaries', () => {
+    assert.deepEqual(parseManualCoordinates('90', '-180'), {
+      point: { latitude: 90, longitude: -180 }, error: null,
+    })
+  })
+
+  it('rejects empty coordinates', () => {
+    assert.deepEqual(parseManualCoordinates('', '12'), { point: null, error: 'Enter both latitude and longitude.' })
+  })
+
+  it('rejects coordinates outside their valid ranges', () => {
+    assert.match(parseManualCoordinates('90.1', '20').error ?? '', /Latitude/)
+    assert.match(parseManualCoordinates('12', '-180.1').error ?? '', /Longitude/)
+    assert.match(parseManualCoordinates('north', '20').error ?? '', /Latitude/)
+  })
+
   it('updates only pickup coordinates and keeps address fields', () => {
     const updated = updateDispatchLocationPoint(locations, 'pickup', { latitude: 45.5, longitude: -122.6 })
 

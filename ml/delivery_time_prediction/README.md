@@ -177,7 +177,11 @@ do not establish accuracy on real deliveries.
 
 ### Run FastAPI with the selected synthetic model
 
-Point the existing API at the selected artifact and start it locally:
+The API now defaults to the model selected in the synthetic evaluation report:
+`models/synthetic/gradient_boosting.joblib`. You can still choose another
+artifact explicitly. Relative `DELIVERY_MODEL_PATH` values are resolved from
+this prediction workspace, so the result does not depend on the shell's current
+directory.
 
 ```powershell
 $report = Get-Content data/processed/synthetic_training_evaluation_report.json -Raw | ConvertFrom-Json
@@ -213,12 +217,14 @@ pairs. It rejects extra fields such as delivery time or final status. Straight-
 line distance is derived from valid coordinate pairs using the same calculation
 as the dataset pipeline.
 
-The service looks for `models/linear_regression.joblib`, or the path set by
-`DELIVERY_MODEL_PATH`. It verifies that the artifact is a fitted scikit-learn
-pipeline with the expected input columns. Until the training pipeline has enough
-data to create that artifact, `POST /predict` returns HTTP 503 with
+The service defaults to the selected synthetic Gradient Boosting model, or the
+path set by `DELIVERY_MODEL_PATH`. It verifies that the artifact is a fitted
+scikit-learn pipeline with the expected input columns and checks the synthetic
+metadata when it is present. The synthetic model is for local prototype testing;
+its evaluation does not establish accuracy on real SWERV deliveries. If the
+artifact is missing or invalid, `POST /predict` returns HTTP 503 with
 `prediction_status: "unavailable"` and a null prediction. It never returns a
-placeholder duration. If the model is generated after the API starts, the
+placeholder duration. If a model is generated after the API starts, the
 service checks again on the next request. Model artifacts use Python
 pickle-based joblib format, so only load files generated and controlled by
 this project.

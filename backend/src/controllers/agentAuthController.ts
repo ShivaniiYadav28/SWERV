@@ -1,6 +1,6 @@
 import type { CookieOptions, RequestHandler, Response } from 'express';
 import { authenticateAgent, setAgentPassword } from '../services/agentAuthService.js';
-import { parseAgentId, parseRequest, agentLoginSchema, setAgentPasswordSchema } from '../utils/agentValidation.js';
+import { parseAgentId, parseRequest, agentLoginSchema, setAgentPasswordSchema, resetAgentPasswordSchema } from '../utils/agentValidation.js';
 import { AGENT_AUTH_COOKIE_NAME, getAgentTokenMaxAge } from '../utils/agentJwt.js';
 import { AGENT_GPS_COOKIE_NAME, agentGpsCookieOptions } from '../utils/agentGpsCookie.js';
 
@@ -38,4 +38,15 @@ export const setAgentPasswordHandler: RequestHandler = async (req, res) => {
   const { password } = parseRequest(setAgentPasswordSchema, req.body);
   await setAgentPassword(agentId, password);
   res.json({ success: true, message: 'Agent login password set successfully.', data: { agentId } });
+};
+
+export const resetAgentPasswordHandler: RequestHandler = async (req, res) => {
+  const agentId = parseAgentId(req.params.id);
+  const { newPassword } = parseRequest(resetAgentPasswordSchema, req.body);
+  await setAgentPassword(agentId, newPassword);
+  res.json({
+    success: true,
+    message: 'Agent password reset successfully.',
+    data: { agentId },
+  });
 };

@@ -17,6 +17,7 @@ import { getDispatchAnalytics } from '../lib/dispatchAnalytics'
 import type { DispatchAnalytics } from '../types/dispatchAnalytics'
 import type { DispatchRequestStatus } from '../types/dispatchRequest'
 import '../App.css'
+import { connectRealtime, dispatchUpdateEvent } from '../lib/realtime'
 
 const dateLabel = new Intl.DateTimeFormat('en-US', {
   weekday: 'long',
@@ -85,6 +86,16 @@ export function DashboardPage() {
     const request = window.setTimeout(() => void loadDashboardAnalytics(), 0)
     return () => window.clearTimeout(request)
   }, [loadDashboardAnalytics, refreshKey])
+
+  useEffect(() => {
+    const socket = connectRealtime()
+    const onDispatchUpdate = () => setRefreshKey((current) => current + 1)
+    socket.on(dispatchUpdateEvent, onDispatchUpdate)
+    return () => {
+      socket.off(dispatchUpdateEvent, onDispatchUpdate)
+      socket.disconnect()
+    }
+  }, [])
 
   async function handleLogout() {
     try {

@@ -301,6 +301,25 @@
 .agent-contact-link svg { color: #d28a7e; }
 .agent-detail-error { display: grid; gap: 4px; }
 
+.agent-pod-panel { display: grid; gap: 12px; margin-bottom: 14px; padding: 16px; background: hsl(var(--card)); border: 1px solid #493537; border-radius: 9px; }
+.agent-pod-panel .agent-info-panel-heading { margin-bottom: 0; }
+.agent-pod-intro, .agent-pod-note { margin: 0; color: #a79ea5; font-size: 10px; line-height: 1.6; }
+.agent-pod-note { padding: 9px 10px; color: #edc994; background: #302921; border: 1px solid #50412d; border-radius: 6px; }
+.agent-pod-step { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid #302d31; }
+.agent-pod-step > strong { display: flex; align-items: center; gap: 7px; color: #e8e1e3; font-size: 10px; }
+.agent-pod-step > strong svg { color: #d99184; }
+.agent-pod-step > p, .agent-pod-step > small { margin: 0; color: #aaa1aa; font-size: 9px; line-height: 1.5; }
+.agent-pod-upload { display: grid; justify-items: start; gap: 8px; color: #e5aaa0; font-size: 9px; cursor: pointer; }
+.agent-pod-upload img { width: min(100%, 260px); max-height: 180px; object-fit: cover; border: 1px solid #464046; border-radius: 7px; }
+.agent-pod-upload span, .agent-pod-actions { display: flex; align-items: center; gap: 8px; }
+.agent-pod-upload input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.agent-pod-inline { display: flex; gap: 8px; }
+.agent-pod-inline input { width: 150px; min-height: 34px; padding: 0 9px; color: #eee8e8; background: #1a191c; border: 1px solid #413b43; border-radius: 6px; font: inherit; font-size: 10px; }
+.agent-pod-dev-code { display: grid; gap: 4px; padding: 10px; color: #f2d0a0; background: #302820; border: 1px solid #5b4930; border-radius: 6px; font-size: 10px; }
+.agent-pod-dev-code span { color: #c3aa86; font-size: 8px; }
+.agent-pod-signature { width: 100%; height: 120px; touch-action: none; background: #252226; border: 1px dashed #645157; border-radius: 6px; }
+.agent-pod-success { margin: 0; padding: 9px 10px; color: #9ed0ae; background: #25342c; border: 1px solid #3b5544; border-radius: 6px; font-size: 9px; }
+
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 @media (max-width: 1000px) {

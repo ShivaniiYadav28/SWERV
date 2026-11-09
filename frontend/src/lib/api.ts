@@ -43,3 +43,17 @@ export async function apiRequest<T>(
   }
   return payload
 }
+
+export async function apiBlobRequest(path: string): Promise<Blob> {
+  let response: Response
+  try {
+    response = await fetch(`${apiBase}${path}`, { credentials: 'include' })
+  } catch {
+    throw new Error('Unable to reach SWERV API. Check that the backend is running and try again.')
+  }
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as ApiResponse<unknown> | null
+    throw new ApiError(payload?.message ?? 'The proof image could not be loaded.', response.status)
+  }
+  return response.blob()
+}

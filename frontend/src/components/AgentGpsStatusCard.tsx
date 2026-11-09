@@ -36,7 +36,7 @@ export function AgentGpsStatusCard({ compact = false }: { compact?: boolean }) {
       <div className="agent-gps-icon"><i /></div>
       <div className="agent-gps-copy">
         <div className="agent-gps-title-row"><strong>{statusLabels[status]}</strong><span className={`agent-gps-state-tag gps-${status}`}>{status === 'active' ? 'LIVE' : status === 'unavailable' ? 'RETRYING' : status === 'permission-required' ? 'ACTION NEEDED' : 'OFF'}</span></div>
-        <p>{isEligibilityLoading ? 'Checking your duty and delivery status…' : !isEligible ? 'GPS starts when you are on duty or have an active delivery.' : message}</p>
+        <p>{isEligibilityLoading ? 'Checking your active deliveries…' : !isEligible ? 'GPS starts automatically when you have an active delivery.' : message}</p>
         {lastReportedAt && status === 'active' && <small>Last update sent {formatDeliveryDate(lastReportedAt)}</small>}
       </div>
       <button

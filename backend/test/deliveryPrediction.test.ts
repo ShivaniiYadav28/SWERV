@@ -8,6 +8,7 @@ import { DispatchRequest } from '../src/models/DispatchRequest.js';
 import { DispatchRequestActivity } from '../src/models/DispatchRequestActivity.js';
 import { User } from '../src/models/User.js';
 import { ensureDispatchRequestCollections } from '../src/services/dispatchRequestService.js';
+import { getMlServiceBaseUrl } from '../src/config/mlService.js';
 import { createAccessToken } from '../src/utils/jwt.js';
 
 let mongo: MongoMemoryReplSet;
@@ -137,6 +138,17 @@ afterAll(async () => {
 });
 
 describe('delivery prediction endpoint', () => {
+  it('defaults the delivery prediction URL to the FastAPI port', () => {
+    const configuredUrl = process.env.ML_SERVICE_BASE_URL;
+    delete process.env.ML_SERVICE_BASE_URL;
+    try {
+      expect(getMlServiceBaseUrl()).toBe('http://127.0.0.1:8001');
+    } finally {
+      if (configuredUrl === undefined) delete process.env.ML_SERVICE_BASE_URL;
+      else process.env.ML_SERVICE_BASE_URL = configuredUrl;
+    }
+  });
+
   it('allows an operator and sends only the Python prediction schema', async () => {
     const dispatchRequest = await createDispatchRequest();
     const agent = await createAgent();
