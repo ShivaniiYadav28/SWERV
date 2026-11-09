@@ -71,12 +71,12 @@ async function authenticateSocket(cookieHeader: string | undefined): Promise<Soc
   }
 }
 
-export function attachSocketServer(server: HttpServer, allowedOrigin: string): Server {
+export function attachSocketServer(server: HttpServer, allowedOrigins: string[]): Server {
   socketServer = new Server(server, {
-    cors: { origin: allowedOrigin, credentials: true, methods: ['GET', 'POST'] },
+    cors: { origin: allowedOrigins, credentials: true, methods: ['GET', 'POST'] },
     allowRequest: (request, callback) => {
       const origin = request.headers.origin;
-      callback(null, !origin || origin === allowedOrigin);
+      callback(null, !origin || allowedOrigins.includes(origin));
     },
   });
 

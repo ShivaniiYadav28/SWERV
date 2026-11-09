@@ -10,6 +10,7 @@ import { AgentLocation } from '../src/models/AgentLocation.js';
 import { DispatchRequest } from '../src/models/DispatchRequest.js';
 import { User } from '../src/models/User.js';
 import { attachSocketServer, closeSocketServer, fleetRoom, publishDispatchUpdate, publishNotification } from '../src/realtime/socketServer.js';
+import { getAllowedClientOrigins } from '../src/config/clientOrigins.js';
 import { createAccessToken } from '../src/utils/jwt.js';
 import { createAgentAccessToken } from '../src/utils/agentJwt.js';
 import { generateAgentDeviceCredential } from '../src/services/agentLocationService.js';
@@ -23,13 +24,20 @@ let agentId = '';
 const clients: Socket[] = [];
 let socketServer: ReturnType<typeof attachSocketServer>;
 
-function connectWithCookie(cookie?: string, reconnect = false): Promise<Socket> {
+function connectWithCookie(
+  cookie?: string,
+  reconnect = false,
+  origin = 'https://swerv-jet.vercel.app',
+): Promise<Socket> {
   return new Promise((resolve, reject) => {
     const socket = createClient(baseUrl, {
       autoConnect: false,
       reconnection: reconnect,
       reconnectionDelay: 50,
-      ...(cookie ? { extraHeaders: { Cookie: cookie } } : {}),
+      extraHeaders: {
+        Origin: origin,
+        ...(cookie ? { Cookie: cookie } : {}),
+      },
     });
     clients.push(socket);
     socket.once('connect', () => resolve(socket));
@@ -69,7 +77,10 @@ beforeAll(async () => {
   });
   adminId = admin.id;
   agentId = agent.id;
-  socketServer = attachSocketServer(httpServer, 'http://localhost:5173');
+  socketServer = attachSocketServer(
+    httpServer,
+    getAllowedClientOrigins('https://swerv-jet.vercel.app'),
+  );
   await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
   const address = httpServer.address();
   if (!address || typeof address === 'string') throw new Error('Realtime test server did not start.');
@@ -84,6 +95,18 @@ afterAll(async () => {
 });
 
 describe('realtime socket authentication and rooms', () => {
+  it('allows the configured frontend origin and rejects untrusted origins', async () => {
+    const adminCookie = `swerv_access=${createAccessToken(adminId)}`;
+
+    await expect(
+      connectWithCookie(adminCookie, false, 'https://untrusted.example'),
+    ).rejects.toThrow();
+
+    await expect(connectWithCookie(adminCookie)).resolves.toMatchObject({
+      connected: true,
+    });
+  });
+
   it('authenticates cookies, assigns only server-controlled rooms, and delivers dispatch updates', async () => {
     await expect(connectWithCookie()).rejects.toThrow();
 

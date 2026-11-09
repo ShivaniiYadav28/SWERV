@@ -2,6 +2,7 @@ import './config/loadEnv.js';
 import { createServer } from 'node:http';
 import app from './app.js';
 import { connectDatabase } from './config/db.js';
+import { getAllowedClientOrigins } from './config/clientOrigins.js';
 import { ensureAuthCollections } from './services/authService.js';
 import { ensureAgentCollections } from './services/agentService.js';
 import { ensureDispatchRequestCollections } from './services/dispatchRequestService.js';
@@ -50,7 +51,7 @@ async function startServer(): Promise<void> {
   await ensureProofOfDeliveryCollections();
   await ensureRoutePlanIndexes();
   await Notification.init();
-  attachSocketServer(httpServer, process.env.CLIENT_URL ?? 'http://localhost:5173');
+  attachSocketServer(httpServer, getAllowedClientOrigins());
 
   httpServer.listen(port, () => {
     console.info(`SWERV API listening on port ${port}`);

@@ -121,7 +121,7 @@ describe('notification frontend helpers', () => {
     }
     globalThis.fetch = (async () => { throw new Error('offline') }) as typeof fetch
     try {
-      await assert.rejects(getNotifications('user'), /Unable to reach SWERV API/)
+      await assert.rejects(getNotifications('user'), /backend CORS settings/)
     } finally {
       globalThis.fetch = originalFetch
     }

@@ -3,6 +3,7 @@ import cookieParser from 'cookie-parser';
 import express from 'express';
 import helmet from 'helmet';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import { getAllowedClientOrigins } from './config/clientOrigins.js';
 import adminRoutes from './routes/adminRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import agentRoutes from './routes/agentRoutes.js';
@@ -22,10 +23,10 @@ import { agentNotificationRoutes, userNotificationRoutes } from './routes/notifi
 import { agentAttendanceRoutes } from './routes/agentAttendanceRoutes.js';
 
 const app = express();
-const allowedOrigin = process.env.CLIENT_URL ?? 'http://localhost:5173';
+const allowedOrigins = getAllowedClientOrigins();
 
 app.use(helmet());
-app.use(cors({ origin: allowedOrigin, credentials: true }));
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 

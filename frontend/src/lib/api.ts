@@ -32,7 +32,7 @@ export async function apiRequest<T>(
     })
   } catch {
     throw new Error(
-      'Unable to reach SWERV API. Check that the backend is running and try again.',
+      'Unable to reach SWERV API. The request may be blocked by network connectivity or the backend CORS settings.',
     )
   }
   const payload = (await response
@@ -49,7 +49,7 @@ export async function apiBlobRequest(path: string): Promise<Blob> {
   try {
     response = await fetch(`${apiBase}${path}`, { credentials: 'include' })
   } catch {
-    throw new Error('Unable to reach SWERV API. Check that the backend is running and try again.')
+    throw new Error('Unable to reach SWERV API. The request may be blocked by network connectivity or the backend CORS settings.')
   }
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as ApiResponse<unknown> | null

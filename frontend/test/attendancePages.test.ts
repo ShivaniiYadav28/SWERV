@@ -287,7 +287,7 @@ describe('agent attendance page', () => {
     await flushEffects()
 
     assert.ok(container.querySelector('[role="alert"]'))
-    assert.match(container.textContent ?? '', /Unable to reach SWERV API/)
+    assert.match(container.textContent ?? '', /backend CORS settings/)
     assert.match(container.textContent ?? '', /Attendance history is unavailable/)
   })
 
