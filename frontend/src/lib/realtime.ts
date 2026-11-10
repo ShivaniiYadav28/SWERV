@@ -1,6 +1,11 @@
 import { io, type Socket } from 'socket.io-client'
 
-const socketBase = (import.meta.env?.VITE_API_URL ?? 'http://localhost:5000').replace(/\/$/, '')
+const isProduction = import.meta.env?.PROD
+const socketBase = (
+  isProduction
+    ? ''
+    : import.meta.env?.VITE_API_URL ?? 'http://localhost:5000'
+).replace(/\/$/, '')
 
 export const fleetLocationEvent = 'fleet:location'
 export const dispatchUpdateEvent = 'dispatch:updated'
@@ -13,5 +18,10 @@ export type DispatchUpdate = {
 }
 
 export function connectRealtime(): Socket {
-  return io(socketBase, { withCredentials: true, autoConnect: true, reconnection: true })
+  return io(socketBase, {
+    withCredentials: true,
+    autoConnect: true,
+    reconnection: true,
+    ...(isProduction ? { transports: ['polling'] } : {}),
+  })
 }

@@ -28,12 +28,14 @@ function connectWithCookie(
   cookie?: string,
   reconnect = false,
   origin = 'https://swerv-jet.vercel.app',
+  transports?: Array<'polling' | 'websocket'>,
 ): Promise<Socket> {
   return new Promise((resolve, reject) => {
     const socket = createClient(baseUrl, {
       autoConnect: false,
       reconnection: reconnect,
       reconnectionDelay: 50,
+      ...(transports ? { transports } : {}),
       extraHeaders: {
         Origin: origin,
         ...(cookie ? { Cookie: cookie } : {}),
@@ -105,6 +107,17 @@ describe('realtime socket authentication and rooms', () => {
     await expect(connectWithCookie(adminCookie)).resolves.toMatchObject({
       connected: true,
     });
+  });
+
+  it('authenticates cookie sessions over polling-only transport', async () => {
+    const socket = await connectWithCookie(
+      `swerv_access=${createAccessToken(adminId)}`,
+      false,
+      'https://swerv-jet.vercel.app',
+      ['polling'],
+    );
+
+    expect(socket.io.engine.transport.name).toBe('polling');
   });
 
   it('authenticates cookies, assigns only server-controlled rooms, and delivers dispatch updates', async () => {

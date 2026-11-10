@@ -3,6 +3,7 @@ import cookieParser from 'cookie-parser';
 import express from 'express';
 import helmet from 'helmet';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import { createOriginProtection } from './middleware/originProtection.js';
 import { getAllowedClientOrigins } from './config/clientOrigins.js';
 import adminRoutes from './routes/adminRoutes.js';
 import authRoutes from './routes/authRoutes.js';
@@ -26,9 +27,10 @@ const app = express();
 const allowedOrigins = getAllowedClientOrigins();
 
 app.use(helmet());
+app.use(cookieParser());
+app.use(createOriginProtection(allowedOrigins));
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json({ limit: '1mb' }));
-app.use(cookieParser());
 
 app.use('/health', healthRoutes);
 app.use('/api/health', healthRoutes);
