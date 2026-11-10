@@ -183,6 +183,7 @@ export async function storePodImage(
   fileName: string,
   contentType: string,
   bytes: Buffer,
+  requestedStorageKey?: string,
 ): Promise<StoredPodFile> {
   const extension = fileExtension(type, contentType);
   if (!extension || !matchesImageSignature(contentType, bytes)) {
@@ -196,9 +197,14 @@ export async function storePodImage(
 
   const safeName = safeDisplayName(fileName, extension);
   const provider = getStorageProvider();
+  if (requestedStorageKey && provider !== 's3') {
+    throw new Error('A fixed storage key is only supported for S3 proof storage.');
+  }
   const storageKey =
     provider === 's3'
-      ? `pod/${randomUUID()}${extension}`
+      ? requestedStorageKey
+        ? s3ObjectKey(requestedStorageKey)
+        : `pod/${randomUUID()}${extension}`
       : `${randomUUID()}${extension}`;
 
   if (provider === 's3') {

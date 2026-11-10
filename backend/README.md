@@ -195,6 +195,40 @@ public. Existing records without a `storageProvider` continue to resolve from
 the legacy local directory; files already removed from an ephemeral disk cannot
 be recovered by the application.
 
+If the legacy volume still contains files, keep it attached to the backend.
+Before running the migration, take a MongoDB backup and a legacy-storage
+backup from the **same deployment and point in time**; do not pair a database
+backup with a volume from another deployment. Run the command from the backend
+directory. The default is a read-only dry run: it disables Mongoose collection
+and index creation, checks that both POD collections already exist, reads
+existing records and local files, and performs no database or R2 writes.
+
+Expected output summarizes readable, migrated, missing, and invalid file
+counts. Missing or invalid files are skipped. Review the dry-run counts and
+confirm the matching backups before explicitly applying:
+
+```sh
+npm run pod:migrate-legacy
+npm run pod:migrate-legacy -- --apply
+```
+
+Apply processes draft records before completed records, then each photo and
+signature sequentially. It uploads readable evidence to a deterministic
+`pod/` object key based on the legacy key and conditionally updates only that
+file's storage key/provider fields on the exact matched record. On rerun,
+already-migrated fields are skipped, and an existing deterministic object with
+identical bytes is reused. A key with different bytes stops the migration for
+investigation.
+
+The migration never deletes local files or R2 objects, and does not change
+delivery, OTP, GPS, or timestamp fields. If metadata update fails after an
+upload, the error reports the orphaned R2 key and how many file references
+completed before stopping. Keep both backups and investigate that key before
+rerunning; reruns use the deterministic key and verify its bytes rather than
+uploading another copy. Unexpected database or provider details are not printed.
+If Render's old ephemeral filesystem has been discarded and no matching backup
+exists, those missing bytes cannot be recovered.
+
 This repository does not currently configure an email or SMS provider. In
 production, OTP requests return HTTP 503 until a provider is connected; the
 service does not claim that a code was delivered. For local development only,

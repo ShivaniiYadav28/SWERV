@@ -63,6 +63,25 @@ describe('proof of delivery API helpers', () => {
     } finally { globalThis.fetch = originalFetch }
   })
 
+  it('loads both available Admin evidence files as images', async () => {
+    const originalFetch = globalThis.fetch
+    const urls: string[] = []
+    globalThis.fetch = (async (input) => {
+      urls.push(String(input))
+      return new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: { 'Content-Type': 'image/png' },
+      })
+    }) as typeof fetch
+    try {
+      const evidence = await getAdminPodEvidence(dispatchId)
+      assert.equal(evidence.photo?.type, 'image/png')
+      assert.equal(evidence.signature?.type, 'image/png')
+      assert.ok(urls.some((url) => url.endsWith('/evidence/photo')))
+      assert.ok(urls.some((url) => url.endsWith('/evidence/signature')))
+    } finally { globalThis.fetch = originalFetch }
+  })
+
   it('keeps available evidence visible when a historical proof file is missing', async () => {
     const originalFetch = globalThis.fetch
     globalThis.fetch = (async (input) => {

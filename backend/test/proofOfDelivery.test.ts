@@ -203,13 +203,24 @@ describe('proof of delivery API', () => {
       failPut = false;
 
       await uploadPhoto();
+      await request(app)
+        .post(`/api/agent/deliveries/${dispatchId}/pod/signature`)
+        .set('Cookie', agentCookie)
+        .set('Content-Type', 'image/png')
+        .set('X-File-Name', 'signature.png')
+        .send(pngFixture)
+        .expect(201);
       const draft = await ProofOfDeliveryDraft.findOne({ dispatchRequestId: dispatchId }).lean();
-      const stored = draft?.photo;
-      if (!stored) throw new Error('Expected uploaded proof metadata.');
-      expect(stored.storageProvider).toBe('s3');
-      expect(stored.storageKey).toMatch(/^pod\/[0-9a-f-]{36}\.png$/);
-      expect(objects.size).toBe(1);
-      await expect(readPodImage(stored!)).resolves.toEqual(pngFixture);
+      const storedPhoto = draft?.photo;
+      const storedSignature = draft?.signature;
+      if (!storedPhoto || !storedSignature) throw new Error('Expected photo and signature metadata.');
+      for (const stored of [storedPhoto, storedSignature]) {
+        expect(stored.storageProvider).toBe('s3');
+        expect(stored.storageKey).toMatch(/^pod\/[0-9a-f-]{36}\.png$/);
+        await expect(readPodImage(stored)).resolves.toEqual(pngFixture);
+      }
+      expect(storedPhoto.storageKey).not.toBe(storedSignature.storageKey);
+      expect(objects.size).toBe(2);
       await request(app)
         .get(`/api/agent/deliveries/${dispatchId}/pod/evidence/photo`)
         .expect(401);
@@ -229,6 +240,12 @@ describe('proof of delivery API', () => {
         .expect(200);
       expect(retrieved.headers['content-type']).toContain('image/png');
       expect(retrieved.body).toEqual(pngFixture);
+      const agentSignature = await request(app)
+        .get(`/api/agent/deliveries/${dispatchId}/pod/evidence/signature`)
+        .set('Cookie', agentCookie)
+        .expect(200);
+      expect(agentSignature.headers['content-type']).toContain('image/png');
+      expect(agentSignature.body).toEqual(pngFixture);
 
       failGet = true;
       const failedRetrieval = await request(app)
@@ -239,13 +256,41 @@ describe('proof of delivery API', () => {
       expect(failedRetrieval.text).not.toContain('sensitive provider response');
       failGet = false;
 
+      await moveToInTransit();
+      const otpResponse = await request(app)
+        .post(`/api/agent/deliveries/${dispatchId}/pod/otp`)
+        .set('Cookie', agentCookie)
+        .expect(200);
+      await request(app)
+        .post(`/api/agent/deliveries/${dispatchId}/pod/otp/verify`)
+        .set('Cookie', agentCookie)
+        .send({ otp: otpResponse.body.data.developmentOtp })
+        .expect(200);
+      await request(app)
+        .post(`/api/agent/deliveries/${dispatchId}/pod/submit`)
+        .set('Cookie', agentCookie)
+        .send({ locationUnavailableReason: 'not_available' })
+        .expect(201);
+      const adminPhoto = await request(app)
+        .get(`/api/admin/pod/${dispatchId}/evidence/photo`)
+        .set('Cookie', adminCookie)
+        .expect(200);
+      const adminSignature = await request(app)
+        .get(`/api/admin/pod/${dispatchId}/evidence/signature`)
+        .set('Cookie', adminCookie)
+        .expect(200);
+      expect(adminPhoto.body).toEqual(pngFixture);
+      expect(adminSignature.body).toEqual(pngFixture);
+
       failDelete = true;
-      await expect(deletePodImage(stored)).rejects.toMatchObject({
+      await expect(deletePodImage(storedPhoto)).rejects.toMatchObject({
         status: 503,
         message: 'Proof storage is temporarily unavailable.',
       });
       failDelete = false;
-      await deletePodImage(stored);
+      await deletePodImage(storedPhoto);
+      expect(objects.size).toBe(1);
+      await deletePodImage(storedSignature);
       expect(objects.size).toBe(0);
       await expect(
         readPodImage({
