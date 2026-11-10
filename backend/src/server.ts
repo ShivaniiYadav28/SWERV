@@ -20,6 +20,7 @@ import { attachSocketServer } from './realtime/socketServer.js';
 import { ensureRoutePlanIndexes } from './models/RoutePlan.js';
 import { Notification } from './models/Notification.js';
 import { ensureAgentAttendanceCollections } from './services/agentAttendanceService.js';
+import { validatePodStorageConfiguration } from './services/podStorageService.js';
 
 const port = Number(process.env.PORT ?? 5000);
 const mongoUri = process.env.MONGO_URI?.trim();
@@ -39,6 +40,7 @@ async function startServer(): Promise<void> {
   getAgentJwtSecret();
   getAgentJwtExpiry();
   getDeliveryTrackingExpirationDays();
+  validatePodStorageConfiguration();
   await connectDatabase(mongoUri);
   await ensureAuthCollections();
   await ensureAgentCollections();

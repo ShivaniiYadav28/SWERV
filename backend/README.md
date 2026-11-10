@@ -157,12 +157,43 @@ Routes use the existing HttpOnly agent or Admin session cookie:
 - Admin only: `GET /api/admin/pod`, `GET /api/admin/pod/:dispatchId`, and
   `GET /api/admin/pod/:dispatchId/evidence/:kind` provide read-only review.
 
-Photos and signatures are stored as files outside MongoDB, under
-`POD_STORAGE_DIR` (default `./private_uploads/pod` relative to the backend
-working directory). Keep this directory private, backed up, and excluded from
-Git. For production, mount a protected persistent volume and configure access
-and retention controls. Image reads require an authenticated owner or Admin;
-the directory is never served as a public static path.
+Photos and signatures are stored outside MongoDB. Local development defaults
+to `POD_STORAGE_PROVIDER=local` and writes under `POD_STORAGE_DIR`
+(`./private_uploads/pod` relative to the backend working directory). Keep this
+directory private, backed up, and excluded from Git.
+
+Production requires S3-compatible object storage. Set these Render environment
+variables before deploying:
+
+- `POD_STORAGE_PROVIDER=s3`
+- `POD_S3_BUCKET` to a private bucket name
+- `POD_S3_REGION` to the bucket region (`auto` for Cloudflare R2)
+- For Cloudflare R2, `POD_S3_ENDPOINT` as
+  `https://<account-id>.r2.cloudflarestorage.com`
+- `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` for Cloudflare R2. Both
+  credentials are required; ambient AWS credentials are not used for R2.
+- For other S3-compatible providers, use `AWS_ACCESS_KEY_ID` and
+  `AWS_SECRET_ACCESS_KEY`, or configure a workload IAM role where supported
+- Optional `AWS_SESSION_TOKEN` when using temporary AWS credentials
+- Optional `POD_S3_ENDPOINT` for a compatible storage provider; it must use
+  HTTPS in production
+- Optional `POD_S3_FORCE_PATH_STYLE=true` when required by that provider
+
+The backend requires Node.js 20 or newer. The `engines.node` setting in
+`backend/package.json` provides Render's runtime version selection.
+
+Grant the backend identity only `s3:PutObject`, `s3:GetObject`, and
+`s3:DeleteObject` for objects under the bucket's `pod/` prefix. Do not make the
+bucket public.
+
+The backend refuses to start in production if S3 storage is not configured;
+it never silently writes new production proof images to Render's ephemeral
+filesystem. Keep the bucket private, enable provider-side encryption, and
+apply appropriate backup and retention controls. Image reads remain protected
+by the authenticated agent or Admin routes, and the bucket is never made
+public. Existing records without a `storageProvider` continue to resolve from
+the legacy local directory; files already removed from an ephemeral disk cannot
+be recovered by the application.
 
 This repository does not currently configure an email or SMS provider. In
 production, OTP requests return HTTP 503 until a provider is connected; the

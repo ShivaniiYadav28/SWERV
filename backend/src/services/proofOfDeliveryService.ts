@@ -78,10 +78,16 @@ export async function getAgentPodStatus(agentId: string, dispatchId: string) {
 
 export async function uploadPodEvidence(agentId: string, dispatchId: string, type: PodFileType, file: StoredPodFile) {
   const draft = await getOrCreateDraft(agentId, dispatchId);
-  const oldKey = draft[type]?.storageKey;
+  const oldFile = draft[type];
   draft[type] = file;
   await draft.save();
-  if (oldKey && oldKey !== file.storageKey) await deletePodImage(oldKey);
+  if (oldFile && oldFile.storageKey !== file.storageKey) {
+    try {
+      await deletePodImage(oldFile);
+    } catch {
+      console.warn('POD object cleanup failed after replacing evidence.');
+    }
+  }
   return { uploaded: true, fileName: file.fileName };
 }
 

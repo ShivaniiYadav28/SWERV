@@ -4,6 +4,7 @@ const storedFileSchema = new Schema({
   storageKey: { type: String, required: true },
   contentType: { type: String, required: true },
   fileName: { type: String, required: true, maxlength: 120 },
+  storageProvider: { type: String, enum: ['local', 's3'] },
 }, { _id: false });
 
 const podDraftSchema = new Schema({

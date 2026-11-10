@@ -1,4 +1,5 @@
 import type { ErrorRequestHandler, RequestHandler } from 'express';
+import { HttpError } from '../utils/httpError.js';
 
 export const notFoundHandler: RequestHandler = (req, res) => {
   res.status(404).json({
@@ -17,6 +18,7 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   }
 
   const status = err && typeof err.status === 'number' ? err.status : 500;
+  const exposeMessage = err instanceof HttpError && err.expose;
   const isProduction = process.env.NODE_ENV === 'production';
   const isMalformedJson = err instanceof SyntaxError && 'body' in err;
 
@@ -30,7 +32,7 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   res.status(status).json({
     success: false,
     message:
-      status >= 500 && isProduction
+      status >= 500 && isProduction && !exposeMessage
         ? 'Internal server error'
         : err?.message || 'Request failed',
     ...(status >= 500 && !isProduction ? { detail: err?.message } : {}),

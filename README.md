@@ -60,6 +60,8 @@ Bundled delivery-time, smart-assignment, demand-forecasting, and anomaly-detecti
 | Routing | OSRM-compatible routing API; the example configuration uses the public OSRM demo service |
 | Verification | Vitest, Supertest, `node:test`, TypeScript builds, Oxlint, Python `unittest` |
 
+The backend requires Node.js 20 or newer (declared by `backend/package.json`).
+
 ## System architecture
 
 ```mermaid
@@ -232,7 +234,14 @@ The backend template is [backend/.env.example](./backend/.env.example). Keep loc
 | `ANOMALY_DETECTION_SERVICE_URL` | Anomaly-detection FastAPI service base URL. | `http://127.0.0.1:8005` | Optional unless using anomaly scoring. |
 | `ROUTING_SERVICE_BASE_URL` | OSRM-compatible routing API base URL. | `https://router.project-osrm.org` | Optional; the backend has this default. |
 | `DELIVERY_TRACKING_TTL_DAYS` | Delivery tracking-link lifetime in days. | `7` | Optional. |
-| `POD_STORAGE_DIR` | Private local path for proof-of-delivery evidence. | `./private_uploads/pod` | Optional; keep the directory private and out of Git. |
+| `POD_STORAGE_PROVIDER` | POD storage backend. | `local` in development; `s3` in production | Production requires `s3`; the API will not start with local ephemeral storage. |
+| `POD_S3_BUCKET` | Private bucket used for POD images. | `<private bucket name>` | Required when `POD_STORAGE_PROVIDER=s3`. |
+| `POD_S3_REGION` | Region for the POD bucket. | `<bucket region>` | Required when `POD_STORAGE_PROVIDER=s3`. |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Credentials for the storage service identity. | `<least-privilege storage credentials>` | Set both, or use a supported workload IAM role. |
+| `POD_S3_ENDPOINT` | Optional S3-compatible service endpoint. | `<HTTPS endpoint>` | Optional; required for providers without the AWS S3 default endpoint. |
+| `POD_S3_FORCE_PATH_STYLE` | Use path-style requests with compatible object-storage endpoints. | `true` | Optional; defaults to `true` when `POD_S3_ENDPOINT` is set. |
+| `AWS_SESSION_TOKEN` | Temporary AWS credential session token. | `<session token>` | Optional; set when using temporary credentials. |
+| `POD_STORAGE_DIR` | Private local POD path for development and legacy evidence. | `./private_uploads/pod` | Local development only for new uploads; keep private and out of Git. |
 | `POD_DEV_OTP_ENABLED` | Enables a development-only test OTP response. | `false` | Optional; keep disabled outside local testing. |
 | `VITE_API_URL` | Frontend API and Socket.IO origin override. | `http://localhost:5000` | Optional; frontend defaults to this local URL. |
 | `MONGO_DATABASE` | Optional database-name override for the delivery-time dataset extraction script. | `swerv` | Optional; used by that ML data pipeline, not backend startup. |

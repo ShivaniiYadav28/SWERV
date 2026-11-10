@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { getAdminPodImage, getPodRecords } from '../src/lib/proofOfDelivery.ts'
+import { getAdminPodEvidence, getAdminPodImage, getPodRecords } from '../src/lib/proofOfDelivery.ts'
 import { requestAgentPodOtp, submitAgentPod, uploadAgentPodImage, verifyAgentPodOtp } from '../src/lib/agentPortal.ts'
 
 const dispatchId = '507f1f77bcf86cd799439011'
@@ -60,6 +60,21 @@ describe('proof of delivery API helpers', () => {
       assert.equal((await getAdminPodImage(dispatchId, 'signature')).type, 'image/png')
       assert.ok(urls[0].endsWith('/api/admin/pod'))
       assert.ok(urls[1].endsWith(`/api/admin/pod/${dispatchId}/evidence/signature`))
+    } finally { globalThis.fetch = originalFetch }
+  })
+
+  it('keeps available evidence visible when a historical proof file is missing', async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async (input) => {
+      if (String(input).endsWith('/evidence/photo')) {
+        return Response.json({ success: false, message: 'Proof file not found.' }, { status: 404 })
+      }
+      return new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { 'Content-Type': 'image/png' } })
+    }) as typeof fetch
+    try {
+      const evidence = await getAdminPodEvidence(dispatchId)
+      assert.equal(evidence.photo, null)
+      assert.equal(evidence.signature?.type, 'image/png')
     } finally { globalThis.fetch = originalFetch }
   })
 })

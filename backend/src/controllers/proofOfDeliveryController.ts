@@ -36,8 +36,8 @@ function rawImage(req: Parameters<RequestHandler>[0], type: PodFileType): { byte
   return { bytes: req.body, contentType, fileName };
 }
 
-async function sendImage(res: Parameters<RequestHandler>[1], file: { storageKey: string; contentType: string; fileName: string }) {
-  const bytes = await readPodImage(file.storageKey);
+async function sendImage(res: Parameters<RequestHandler>[1], file: { storageKey: string; contentType: string; fileName: string; storageProvider?: 'local' | 's3' | null }) {
+  const bytes = await readPodImage(file);
   res.set({ 'Content-Type': file.contentType, 'Content-Disposition': `inline; filename="${file.fileName}"`, 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' });
   res.send(bytes);
 }
@@ -57,7 +57,11 @@ export function uploadAgentPodEvidenceHandler(type: PodFileType): RequestHandler
       const result = await uploadPodEvidence(agentId(req), id, type, stored);
       res.status(201).json({ success: true, message: 'Proof image uploaded.', data: result });
     } catch (error) {
-      await deletePodImage(stored.storageKey);
+      try {
+        await deletePodImage(stored);
+      } catch {
+        console.warn('POD object cleanup failed after a metadata error.');
+      }
       throw error;
     }
   };

@@ -3,12 +3,12 @@ import { CheckCircle2, ClipboardCheck, MapPin, Menu, RefreshCw, X } from 'lucide
 import { useNavigate } from 'react-router-dom'
 import { DashboardSidebar } from '../components/DashboardSidebar'
 import { useAuth } from '../hooks/useAuth'
-import { getAdminPodImage, getPodRecord, getPodRecords } from '../lib/proofOfDelivery'
+import { getAdminPodEvidence, getPodRecord, getPodRecords } from '../lib/proofOfDelivery'
 import type { PodRecord } from '../types/proofOfDelivery'
 import '../App.css'
 import './proof-of-delivery.css'
 
-type EvidenceUrls = { photo: string; signature: string }
+type EvidenceUrls = { photo: string | null; signature: string | null }
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
@@ -21,6 +21,7 @@ export function ProofOfDeliveryPage() {
   const [records, setRecords] = useState<PodRecord[]>([])
   const [selected, setSelected] = useState<PodRecord | null>(null)
   const [evidence, setEvidence] = useState<EvidenceUrls | null>(null)
+  const [evidenceWarning, setEvidenceWarning] = useState('')
   const [loading, setLoading] = useState(true)
   const [detailLoading, setDetailLoading] = useState(false)
   const [error, setError] = useState('')
@@ -36,22 +37,32 @@ export function ProofOfDeliveryPage() {
     const timer = window.setTimeout(() => void loadRecords(), 0)
     return () => window.clearTimeout(timer)
   }, [loadRecords])
-  useEffect(() => () => { if (evidence) { URL.revokeObjectURL(evidence.photo); URL.revokeObjectURL(evidence.signature) } }, [evidence])
+  useEffect(() => () => {
+    if (evidence?.photo != null) URL.revokeObjectURL(evidence.photo)
+    if (evidence?.signature != null) URL.revokeObjectURL(evidence.signature)
+  }, [evidence])
 
   async function openRecord(dispatchId: string) {
-    setDetailLoading(true); setError('')
+    setDetailLoading(true); setError(''); setEvidenceWarning('')
     try {
       const record = await getPodRecord(dispatchId)
-      const [photoBlob, signatureBlob] = await Promise.all([getAdminPodImage(dispatchId, 'photo'), getAdminPodImage(dispatchId, 'signature')])
+      const files = await getAdminPodEvidence(dispatchId)
       setSelected(record)
-      setEvidence({ photo: URL.createObjectURL(photoBlob), signature: URL.createObjectURL(signatureBlob) })
+      setEvidence({
+        photo: files.photo ? URL.createObjectURL(files.photo) : null,
+        signature: files.signature ? URL.createObjectURL(files.signature) : null,
+      })
+      const missing = [
+        !files.photo ? 'Delivery photo' : '',
+        !files.signature ? 'Customer signature' : '',
+      ].filter(Boolean)
+      setEvidenceWarning(missing.length ? `${missing.join(' and ')} unavailable in storage.` : '')
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Proof details could not be loaded.') }
     finally { setDetailLoading(false) }
   }
 
   function closeDetails() {
-    if (evidence) { URL.revokeObjectURL(evidence.photo); URL.revokeObjectURL(evidence.signature) }
-    setEvidence(null); setSelected(null)
+    setEvidence(null); setSelected(null); setEvidenceWarning('')
   }
 
   async function handleLogout() {
@@ -68,6 +79,6 @@ export function ProofOfDeliveryPage() {
         {loading ? <div className="pod-admin-state" role="status">Loading proof records…</div> : records.length === 0 ? <div className="pod-admin-state"><ClipboardCheck size={24} /><strong>No completed POD records</strong><span>Submitted delivery proof will appear here.</span></div> : <div className="pod-admin-table-wrap"><table className="pod-admin-table"><thead><tr><th>Dispatch</th><th>Agent</th><th>Delivered</th><th>Verification</th><th></th></tr></thead><tbody>{records.map((record) => <tr key={record._id}><td><strong>#{record.dispatchRequestId.slice(-8).toUpperCase()}</strong><small>{record.dispatchRequestId}</small></td><td>{record.agent?.name ?? 'Agent unavailable'}<small>{record.agent?.agentCode ?? record.agentId}</small></td><td>{formatDate(record.deliveredAt)}</td><td><span className="pod-verified-pill"><CheckCircle2 size={14} />OTP verified</span><small>{record.locationStatus === 'captured' ? 'GPS captured' : 'GPS unavailable'}</small></td><td><button className="pod-view-button" type="button" onClick={() => void openRecord(record.dispatchRequestId)} disabled={detailLoading}>{detailLoading ? 'Loading…' : 'View proof'}</button></td></tr>)}</tbody></table></div>}
       </div>
     </main>
-    {selected && <div className="pod-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeDetails() }}><section className="pod-modal" role="dialog" aria-modal="true" aria-labelledby="pod-modal-title"><header><div><span className="pod-admin-eyebrow">IMMUTABLE EVIDENCE</span><h2 id="pod-modal-title">Dispatch #{selected.dispatchRequestId.slice(-8).toUpperCase()}</h2></div><button type="button" aria-label="Close proof details" onClick={closeDetails}><X size={18} /></button></header><div className="pod-modal-facts"><div><span>Agent</span><strong>{selected.agent?.name ?? 'Agent unavailable'} · {selected.agent?.agentCode ?? selected.agentId}</strong></div><div><span>Delivery time</span><strong>{formatDate(selected.deliveredAt)}</strong></div><div><span>Customer verification</span><strong>OTP verified · {formatDate(selected.otpVerifiedAt)}</strong></div><div><span>Location</span><strong>{selected.locationStatus === 'captured' && selected.latitude !== null && selected.longitude !== null ? <><MapPin size={14} />{selected.latitude.toFixed(6)}, {selected.longitude.toFixed(6)}{selected.accuracyMeters !== null ? ` · ±${Math.round(selected.accuracyMeters)} m` : ''}</> : `Unavailable (${selected.locationUnavailableReason?.replaceAll('_', ' ') ?? 'not provided'})`}</strong></div></div>{evidence && <div className="pod-evidence-grid"><figure><img src={evidence.photo} alt="Delivery photograph" /><figcaption>Delivery photo</figcaption></figure><figure><img src={evidence.signature} alt="Customer digital signature" /><figcaption>Customer signature</figcaption></figure></div>}<p className="pod-immutable-note">Submitted evidence is read-only.</p></section></div>}
+    {selected && <div className="pod-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeDetails() }}><section className="pod-modal" role="dialog" aria-modal="true" aria-labelledby="pod-modal-title"><header><div><span className="pod-admin-eyebrow">IMMUTABLE EVIDENCE</span><h2 id="pod-modal-title">Dispatch #{selected.dispatchRequestId.slice(-8).toUpperCase()}</h2></div><button type="button" aria-label="Close proof details" onClick={closeDetails}><X size={18} /></button></header><div className="pod-modal-facts"><div><span>Agent</span><strong>{selected.agent?.name ?? 'Agent unavailable'} · {selected.agent?.agentCode ?? selected.agentId}</strong></div><div><span>Delivery time</span><strong>{formatDate(selected.deliveredAt)}</strong></div><div><span>Customer verification</span><strong>OTP verified · {formatDate(selected.otpVerifiedAt)}</strong></div><div><span>Location</span><strong>{selected.locationStatus === 'captured' && selected.latitude !== null && selected.longitude !== null ? <><MapPin size={14} />{selected.latitude.toFixed(6)}, {selected.longitude.toFixed(6)}{selected.accuracyMeters !== null ? ` · ±${Math.round(selected.accuracyMeters)} m` : ''}</> : `Unavailable (${selected.locationUnavailableReason?.replaceAll('_', ' ') ?? 'not provided'})`}</strong></div></div>{evidence && <><div className="pod-evidence-grid"><figure>{evidence.photo ? <img src={evidence.photo} alt="Delivery photograph" /> : <div className="pod-evidence-missing">Delivery photo unavailable</div>}<figcaption>Delivery photo</figcaption></figure><figure>{evidence.signature ? <img src={evidence.signature} alt="Customer digital signature" /> : <div className="pod-evidence-missing">Customer signature unavailable</div>}<figcaption>Customer signature</figcaption></figure></div>{evidenceWarning && <p className="pod-evidence-warning" role="status">{evidenceWarning} Historical files missing from storage cannot be restored by this application.</p>}</>}<p className="pod-immutable-note">Submitted evidence is read-only.</p></section></div>}
   </div>
 }
