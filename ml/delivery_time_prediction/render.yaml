@@ -1,0 +1,19 @@
+# Render Blueprint for SWERV Delivery Time Prediction Service
+# Standby Deployment Configuration
+
+services:
+  - type: web
+    name: swerv-delivery-time-prediction
+    runtime: python
+    rootDir: ml/delivery_time_prediction
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn src.api:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: false
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.14
+      - key: SWERV_ENV
+        value: production
+      # For standby: DELIVERY_MODEL_PATH and APPROVED_MODEL_SHA256 remain unset.
+      # The service will start cleanly, pass /health (HTTP 200), and safely return HTTP 503 on /predict.

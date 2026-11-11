@@ -48,6 +48,7 @@ class HealthResponse(BaseModel):
     status: Literal["ok"]
     model_available: bool
     model_version: str | None
+    artifacts_loaded: bool = False
 
 
 class PredictionResponse(BaseModel):

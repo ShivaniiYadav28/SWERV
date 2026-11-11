@@ -6,11 +6,13 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 from typing import Any
 
 import joblib
 import numpy as np
 import pandas as pd
+from sklearn.dummy import DummyRegressor
 from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import Pipeline
@@ -21,8 +23,22 @@ from . import v2_features
 
 
 WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_MODEL_PATH = WORKSPACE_ROOT / "models" / "synthetic" / "gradient_boosting.joblib"
 EXPECTED_INPUT_COLUMNS = training.CATEGORICAL_COLUMNS + training.NUMERICAL_COLUMNS
+
+
+SHA256_HEX_PATTERN = re.compile(r"^[0-9a-fA-F]{64}$")
+
+
+def is_valid_sha256(digest: str) -> bool:
+    return bool(SHA256_HEX_PATTERN.fullmatch(digest.strip()))
+
+
+def is_production_environment() -> bool:
+    env = os.getenv(
+        "DELIVERY_PREDICTION_ENV",
+        os.getenv("SWERV_ENV", os.getenv("ENVIRONMENT", os.getenv("NODE_ENV", ""))),
+    ).strip().lower()
+    return env == "production" or bool(os.getenv("RENDER"))
 
 
 class DeliveryModelService:
@@ -30,10 +46,22 @@ class DeliveryModelService:
 
     def __init__(self, model_path: Path | None = None) -> None:
         configured_path = os.getenv("DELIVERY_MODEL_PATH", "").strip()
-        selected_path = model_path or (Path(configured_path) if configured_path else DEFAULT_MODEL_PATH)
-        if not selected_path.is_absolute():
-            selected_path = WORKSPACE_ROOT / selected_path
-        self.model_path = selected_path.resolve()
+        selected_path: Path | None = None
+        if model_path is not None:
+            selected_path = model_path
+        elif configured_path:
+            selected_path = Path(configured_path)
+        else:
+            # In production or when DELIVERY_MODEL_PATH is unset, never load synthetic model automatically.
+            selected_path = None
+
+        if selected_path is not None:
+            if not selected_path.is_absolute():
+                selected_path = WORKSPACE_ROOT / selected_path
+            self.model_path: Path | None = selected_path.resolve()
+        else:
+            self.model_path = None
+
         self._model: Pipeline | None = None
         self._model_version: str | None = None
         self._feature_version = "v1"
@@ -43,6 +71,10 @@ class DeliveryModelService:
     def model_version(self) -> str | None:
         self.load_model()
         return self._model_version
+
+    @property
+    def artifacts_loaded(self) -> bool:
+        return self.available
 
     @property
     def available(self) -> bool:
@@ -58,7 +90,12 @@ class DeliveryModelService:
         if self._checked:
             return self._model is not None
 
+        if self.model_path is None:
+            self._checked = True
+            return False
+
         if not self.model_path.is_file() or self.model_path.suffix != ".joblib":
+            self._checked = True
             return False
         self._checked = True
 
@@ -73,6 +110,7 @@ class DeliveryModelService:
                 LinearRegression: "linear_regression",
                 RandomForestRegressor: "random_forest",
                 GradientBoostingRegressor: "gradient_boosting",
+                DummyRegressor: "median_baseline",
             }
             model_name = next(
                 (name for model_type, name in model_names.items() if isinstance(regressor, model_type)),
@@ -86,20 +124,42 @@ class DeliveryModelService:
             fitted_inputs = list(preprocessor.feature_names_in_)
             artifact_digest = hashlib.sha256(self.model_path.read_bytes()).hexdigest()
             digest = artifact_digest[:12]
+
+            # FIX 2: Server-side artifact approval
+            # In production, require APPROVED_MODEL_SHA256 to be present, valid,
+            # and exactly match the actual calculated SHA-256 of the .joblib file.
+            if is_production_environment():
+                configured_approved_hash = os.getenv("APPROVED_MODEL_SHA256", "").strip().lower()
+                if not configured_approved_hash or not is_valid_sha256(configured_approved_hash):
+                    return False
+                if artifact_digest.lower() != configured_approved_hash:
+                    return False
+
             metadata_path = self.model_path.with_suffix(".metadata.json")
             if metadata_path.is_file():
                 metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+                training_source = metadata.get("training_source", "unknown")
                 if (
-                    metadata.get("training_source") != "synthetic"
+                    training_source not in ("synthetic", "lade_d", "operational", "baseline")
                     or metadata.get("model_name") != model_name
                     or metadata.get("artifact_sha256") != artifact_digest
                 ):
                     return False
+
+                # FIX 1: Strict production provenance policy
+                # In production, accept ONLY training_source == "operational".
+                # Reject baseline, lade_d, synthetic, unknown, missing and all other values.
+                if is_production_environment() and training_source != "operational":
+                    return False
+
                 feature_version = metadata.get("feature_version", "v1")
                 if feature_version not in ("v1", "v2"):
                     return False
-                version = f"{model_name}-synthetic-{digest}"
+                version = f"{model_name}-{training_source}-{digest}"
             else:
+                # Production strictly rejects artifacts without verified provenance metadata
+                if is_production_environment():
+                    return False
                 feature_version = "v1"
                 version = f"{model_name}-{digest}"
             expected_inputs = (
