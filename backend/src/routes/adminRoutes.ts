@@ -7,6 +7,7 @@ import {
   changeUserRoleHandler, changeUserStatusHandler, createUserHandler,
   getUserHandler, listUsersHandler,
 } from '../controllers/adminUserController.js';
+import { getDeliveryDataQualitySummaryHandler } from '../controllers/deliveryQualityController.js';
 
 const router = Router();
 router.use(requireAuth, allowRoles('admin'));
@@ -17,5 +18,6 @@ router.post('/users', createUserHandler);
 router.patch('/users/:id/role', changeUserRoleHandler);
 router.patch('/users/:id/status', changeUserStatusHandler);
 router.post('/agents/:id/reset-password', resetAgentPasswordHandler);
+router.get('/delivery-quality', getDeliveryDataQualitySummaryHandler);
 
 export default router;

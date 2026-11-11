@@ -171,6 +171,14 @@ export async function submitProofOfDelivery(agentId: string, dispatchId: string,
     });
     await pod.save({ session });
     dispatch.status = 'delivered';
+    dispatch.deliveredAt = deliveredAt;
+    const assignedTime = dispatch.assignedAt ? new Date(dispatch.assignedAt).getTime() : NaN;
+    if (!Number.isNaN(assignedTime) && deliveredAt.getTime() > assignedTime) {
+      const duration = (deliveredAt.getTime() - assignedTime) / 60_000;
+      dispatch.actualDurationMinutes = Number.isFinite(duration) && duration > 0 ? duration : null;
+    } else {
+      dispatch.actualDurationMinutes = null;
+    }
     await dispatch.save({ session });
     await Agent.updateOne({ _id: agentId, activeDispatchCount: { $gt: 0 } }, { $inc: { activeDispatchCount: -1 } }, { session });
     await DispatchRequestActivity.create([{

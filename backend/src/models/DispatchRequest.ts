@@ -91,6 +91,11 @@ const dispatchRequestSchema = new Schema(
     priority: { type: String, enum: dispatchPriorities, default: 'standard', required: true },
     status: { type: String, enum: dispatchRequestStatuses, default: 'pending', required: true },
     assignedAgent: { type: Schema.Types.ObjectId, ref: 'Agent', default: null },
+    assignedAt: { type: Date, default: null },
+    pickedUpAt: { type: Date, default: null },
+    inTransitAt: { type: Date, default: null },
+    deliveredAt: { type: Date, default: null },
+    actualDurationMinutes: { type: Number, default: null, min: 0 },
   },
   { timestamps: true, optimisticConcurrency: true },
 );

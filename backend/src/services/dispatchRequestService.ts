@@ -116,6 +116,12 @@ export async function changeAgentDeliveryStatus(agentId: string, id: string, sta
     }
     const previousStatus = dispatchRequest.status;
     dispatchRequest.status = status;
+    if (status === 'picked_up' && !dispatchRequest.pickedUpAt) {
+      dispatchRequest.pickedUpAt = new Date();
+    }
+    if (status === 'in_transit' && !dispatchRequest.inTransitAt) {
+      dispatchRequest.inTransitAt = new Date();
+    }
     await dispatchRequest.save({ session });
     await DispatchRequestActivity.create([{
       dispatchRequestId: dispatchRequest._id,
@@ -222,6 +228,7 @@ export async function assignDispatchRequest(
 
     const previousStatus = dispatchRequest.status;
     dispatchRequest.assignedAgent = availableAgent._id;
+    dispatchRequest.assignedAt = new Date();
     if (previousStatus === 'pending') dispatchRequest.status = 'assigned';
     await dispatchRequest.save({ session });
 
