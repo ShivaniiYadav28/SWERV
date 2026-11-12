@@ -41,18 +41,33 @@ def is_production_environment() -> bool:
     return env == "production" or bool(os.getenv("RENDER"))
 
 
+def is_demo_enabled() -> bool:
+    return os.getenv("ENABLE_DEMO_ENDPOINT", os.getenv("ALLOW_SIMULATED_DEMO", "")).strip().lower() in ("true", "1", "yes")
+
+
 class DeliveryModelService:
     """Keep one validated model loaded for the lifetime of the API process."""
 
-    def __init__(self, model_path: Path | None = None) -> None:
-        configured_path = os.getenv("DELIVERY_MODEL_PATH", "").strip()
+    def __init__(
+        self,
+        model_path: Path | None = None,
+        mode: str = "operational",
+    ) -> None:
+        self.mode = mode
+        if mode == "demo":
+            configured_path = os.getenv("DEMO_MODEL_PATH", "").strip()
+            if not configured_path and is_demo_enabled() and os.getenv("DEMO_APPROVED_MODEL_SHA256"):
+                configured_path = os.getenv("DELIVERY_MODEL_PATH", "").strip()
+        else:
+            configured_path = os.getenv("DELIVERY_MODEL_PATH", "").strip()
+
         selected_path: Path | None = None
         if model_path is not None:
             selected_path = model_path
         elif configured_path:
             selected_path = Path(configured_path)
         else:
-            # In production or when DELIVERY_MODEL_PATH is unset, never load synthetic model automatically.
+            # In production or when path is unset, never load synthetic model automatically.
             selected_path = None
 
         if selected_path is not None:
@@ -125,15 +140,30 @@ class DeliveryModelService:
             artifact_digest = hashlib.sha256(self.model_path.read_bytes()).hexdigest()
             digest = artifact_digest[:12]
 
-            # FIX 2: Server-side artifact approval
-            # In production, require APPROVED_MODEL_SHA256 to be present, valid,
-            # and exactly match the actual calculated SHA-256 of the .joblib file.
-            if is_production_environment():
-                configured_approved_hash = os.getenv("APPROVED_MODEL_SHA256", "").strip().lower()
+            # Server-side artifact approval:
+            if self.mode == "demo":
+                if not is_demo_enabled():
+                    return False
+                configured_approved_hash = os.getenv(
+                    "DEMO_APPROVED_MODEL_SHA256", os.getenv("APPROVED_MODEL_SHA256", "")
+                ).strip().lower()
                 if not configured_approved_hash or not is_valid_sha256(configured_approved_hash):
                     return False
                 if artifact_digest.lower() != configured_approved_hash:
                     return False
+            else:
+                # Operational mode: in production, require APPROVED_MODEL_SHA256 to be present and match
+                if is_production_environment():
+                    configured_approved_hash = os.getenv("APPROVED_MODEL_SHA256", "").strip().lower()
+                    if not configured_approved_hash or not is_valid_sha256(configured_approved_hash):
+                        return False
+                    if artifact_digest.lower() != configured_approved_hash:
+                        return False
+                else:
+                    configured_approved_hash = os.getenv("APPROVED_MODEL_SHA256", "").strip().lower()
+                    if configured_approved_hash:
+                        if not is_valid_sha256(configured_approved_hash) or artifact_digest.lower() != configured_approved_hash:
+                            return False
 
             metadata_path = self.model_path.with_suffix(".metadata.json")
             if metadata_path.is_file():
@@ -146,19 +176,24 @@ class DeliveryModelService:
                 ):
                     return False
 
-                # FIX 1: Strict production provenance policy
-                # In production, accept ONLY training_source == "operational".
-                # Reject baseline, lade_d, synthetic, unknown, missing and all other values.
-                if is_production_environment() and training_source != "operational":
-                    return False
+                if self.mode == "demo":
+                    # Demo endpoint is restricted to simulated / synthetic models
+                    if training_source not in ("synthetic", "baseline"):
+                        return False
+                else:
+                    # Strict production provenance policy:
+                    # In production, accept ONLY training_source == "operational".
+                    # Reject baseline, lade_d, synthetic, unknown, missing and all other values.
+                    if is_production_environment() and training_source != "operational":
+                        return False
 
                 feature_version = metadata.get("feature_version", "v1")
                 if feature_version not in ("v1", "v2"):
                     return False
                 version = f"{model_name}-{training_source}-{digest}"
             else:
-                # Production strictly rejects artifacts without verified provenance metadata
-                if is_production_environment():
+                # Reject artifacts without verified provenance metadata
+                if is_production_environment() or self.mode == "demo":
                     return False
                 feature_version = "v1"
                 version = f"{model_name}-{digest}"
@@ -191,4 +226,6 @@ class DeliveryModelService:
         return value
 
 
-model_service = DeliveryModelService()
+operational_model_service = DeliveryModelService(mode="operational")
+demo_model_service = DeliveryModelService(mode="demo")
+model_service = operational_model_service

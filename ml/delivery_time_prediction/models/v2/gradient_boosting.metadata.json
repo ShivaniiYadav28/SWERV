@@ -1,5 +1,6 @@
 {
   "training_source": "synthetic",
+  "simulation_label": "simulated_synthetic_v2",
   "model_name": "gradient_boosting",
   "model_version": "gradient_boosting-synthetic-2e7b05c087e5",
   "feature_version": "v2",
@@ -31,5 +32,24 @@
     "complete_coordinates_available"
   ],
   "target_column": "delivery_duration_minutes",
+  "baseline_metrics": {
+    "mae_minutes": 32.67054,
+    "rmse_minutes": 40.93084164661167,
+    "r2": -0.004670912084751899
+  },
+  "validation_metrics": {
+    "mae_minutes": 12.784997234807058,
+    "rmse_minutes": 18.29005974001931,
+    "r2": 0.7993899313776152
+  },
+  "comparison_vs_baseline": {
+    "mae_minutes": 12.784997234807058,
+    "rmse_minutes": 18.29005974001931,
+    "r2": 0.7993899313776152,
+    "mae_reduction_minutes": 19.8855,
+    "mae_pct_improvement": 60.87,
+    "rmse_reduction_minutes": 22.6408,
+    "r2_gain": 0.8041
+  },
   "real_world_accuracy_validated": false
 }

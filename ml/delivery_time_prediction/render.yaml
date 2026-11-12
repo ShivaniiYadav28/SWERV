@@ -1,5 +1,5 @@
 # Render Blueprint for SWERV Delivery Time Prediction Service
-# Standby Deployment Configuration
+# Operational Standby with Verified Demo Endpoint Configuration
 
 services:
   - type: web
@@ -15,5 +15,14 @@ services:
         value: 3.10.14
       - key: SWERV_ENV
         value: production
-      # For standby: DELIVERY_MODEL_PATH and APPROVED_MODEL_SHA256 remain unset.
-      # The service will start cleanly, pass /health (HTTP 200), and safely return HTTP 503 on /predict.
+      # Operational model remains unset for safe production standby:
+      # DELIVERY_MODEL_PATH and APPROVED_MODEL_SHA256 remain unset.
+      # Operational /predict strictly returns HTTP 503.
+      #
+      # Demo endpoint configuration:
+      - key: ENABLE_DEMO_ENDPOINT
+        value: "true"
+      - key: DEMO_MODEL_PATH
+        value: models/v2/gradient_boosting.joblib
+      - key: DEMO_APPROVED_MODEL_SHA256
+        value: 2e7b05c087e5bb2fbfed1f4766895d7626e0611b6f60f0b9be638a8822f7cafb

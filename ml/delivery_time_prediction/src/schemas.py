@@ -45,14 +45,28 @@ class DeliveryPredictionRequest(BaseModel):
 
 
 class HealthResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
     status: Literal["ok"]
     model_available: bool
     model_version: str | None
     artifacts_loaded: bool = False
+    operational_model_available: bool | None = None
+    operational_model_version: str | None = None
+    demo_model_available: bool | None = None
+    demo_model_version: str | None = None
 
 
 class PredictionResponse(BaseModel):
     predicted_duration_minutes: float | None
+    model_version: str | None
+    prediction_status: Literal["available", "unavailable"]
+    message: str
+
+
+class DemoPredictionResponse(BaseModel):
+    predicted_duration_minutes: float | None
+    prediction_type: Literal["simulated_demo"] = "simulated_demo"
     model_version: str | None
     prediction_status: Literal["available", "unavailable"]
     message: str
