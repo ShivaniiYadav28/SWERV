@@ -7,6 +7,7 @@ import type {
   DispatchRequestDetails,
   DispatchCoordinatePoint,
   DeliveryTimePrediction,
+  DemoDeliveryTimePrediction,
   AgentRecommendation,
   AgentRecommendationResult,
 } from '../types/dispatchRequest'
@@ -84,6 +85,29 @@ export async function requestDeliveryTimePrediction(
     || prediction.modelVersion.trim().length === 0
   ) {
     throw new Error('The prediction service returned an invalid prediction.')
+  }
+  return prediction
+}
+
+export async function requestDemoDeliveryTimePrediction(
+  requestId: string,
+): Promise<DemoDeliveryTimePrediction> {
+  const response = await apiRequest<{ prediction: DemoDeliveryTimePrediction }>(
+    `/api/dispatch-requests/${encodeURIComponent(requestId)}/demo-prediction`,
+    { method: 'POST' },
+  )
+  const prediction = response.data?.prediction
+  if (
+    !prediction
+    || prediction.predictionStatus !== 'available'
+    || prediction.predictionType !== 'simulated_demo'
+    || typeof prediction.predictedDurationMinutes !== 'number'
+    || !Number.isFinite(prediction.predictedDurationMinutes)
+    || prediction.predictedDurationMinutes <= 0
+    || typeof prediction.modelVersion !== 'string'
+    || prediction.modelVersion.trim().length === 0
+  ) {
+    throw new Error('The demo prediction service returned an invalid prediction.')
   }
   return prediction
 }

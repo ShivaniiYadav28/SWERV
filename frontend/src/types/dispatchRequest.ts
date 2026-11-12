@@ -109,6 +109,14 @@ export type DeliveryTimePrediction = {
   predictionStatus: 'available'
 }
 
+export type DemoDeliveryTimePrediction = {
+  predictedDurationMinutes: number
+  predictionType: 'simulated_demo'
+  modelVersion: string
+  predictionStatus: 'available'
+  disclaimer: string
+}
+
 export type AgentRecommendation = {
   rank: number
   agent: {

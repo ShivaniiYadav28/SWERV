@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { getAgentRecommendationsHandler } from '../controllers/agentRecommendationController.js';
-import { predictDeliveryTimeHandler } from '../controllers/deliveryPredictionController.js';
+import {
+  predictDeliveryTimeHandler,
+  predictDemoDeliveryTimeHandler,
+} from '../controllers/deliveryPredictionController.js';
 import {
   assignDispatchRequestHandler,
   changeDispatchRequestStatusHandler,
@@ -28,6 +31,7 @@ router.get('/', listDispatchRequestsHandler);
 router.get('/:id/agent-recommendations', getAgentRecommendationsHandler);
 router.get('/:id', getDispatchRequestHandler);
 router.post('/:id/prediction', predictDeliveryTimeHandler);
+router.post('/:id/demo-prediction', predictDemoDeliveryTimeHandler);
 router.patch('/:id/assignment', assignDispatchRequestHandler);
 router.patch('/:id/status', changeDispatchRequestStatusHandler);
 router.patch('/:id/coordinates', updateDispatchRequestCoordinatesHandler);

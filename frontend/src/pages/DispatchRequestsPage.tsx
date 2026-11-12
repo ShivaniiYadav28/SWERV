@@ -25,6 +25,7 @@ import {
   getDispatchRequest,
   getAgentRecommendations,
   requestDeliveryTimePrediction,
+  requestDemoDeliveryTimePrediction,
   updateDispatchRequestStatus,
   updateDispatchRequestCoordinates,
   type DispatchRequestFilters,
@@ -45,6 +46,7 @@ import type {
   CreateDispatchRequestInput,
   PackageCategory,
   DeliveryTimePrediction,
+  DemoDeliveryTimePrediction,
 } from '../types/dispatchRequest'
 import type { Agent } from '../types/agent'
 import { getCustomers } from '../lib/customers'
@@ -114,6 +116,16 @@ type PredictionState =
 type StoredPredictionState = {
   requestKey: string
   state: PredictionState
+}
+
+type DemoPredictionState =
+  | { status: 'idle' | 'loading' }
+  | { status: 'success'; prediction: DemoDeliveryTimePrediction }
+  | { status: 'unavailable' | 'ineligible' | 'error'; message: string }
+
+type StoredDemoPredictionState = {
+  requestKey: string
+  state: DemoPredictionState
 }
 
 type RecommendationState =
@@ -759,6 +771,10 @@ function DispatchRequestDrawer({
     requestKey: '',
     state: { status: 'idle' },
   })
+  const [storedDemoPredictionState, setStoredDemoPredictionState] = useState<StoredDemoPredictionState>({
+    requestKey: '',
+    state: { status: 'idle' },
+  })
   const [storedRecommendationState, setStoredRecommendationState] = useState<StoredRecommendationState>({
     requestId: '',
     state: { status: 'idle' },
@@ -784,6 +800,9 @@ function DispatchRequestDrawer({
   ])
   const predictionState = storedPredictionState.requestKey === requestKey
     ? storedPredictionState.state
+    : { status: 'idle' as const }
+  const demoPredictionState = storedDemoPredictionState.requestKey === requestKey
+    ? storedDemoPredictionState.state
     : { status: 'idle' as const }
   const activity = [...(details?.activity ?? [])].sort(
     (first, second) => new Date(first.createdAt).getTime() - new Date(second.createdAt).getTime(),
@@ -818,6 +837,41 @@ function DispatchRequestDrawer({
           state: {
             status: 'error',
             message: error instanceof Error ? error.message : 'Could not get a delivery time prediction.',
+          },
+        })
+      }
+    }
+  }
+
+  async function handleDemoPrediction() {
+    if (!request) return
+    setStoredDemoPredictionState({ requestKey, state: { status: 'loading' } })
+    try {
+      const prediction = await requestDemoDeliveryTimePrediction(request._id)
+      setStoredDemoPredictionState({ requestKey, state: { status: 'success', prediction } })
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 503) {
+        setStoredDemoPredictionState({
+          requestKey,
+          state: {
+            status: 'unavailable',
+            message: error.message,
+          },
+        })
+      } else if (error instanceof ApiError && error.status === 409) {
+        setStoredDemoPredictionState({
+          requestKey,
+          state: {
+            status: 'ineligible',
+            message: 'This request is not ready for a prediction. Check that it is assigned and has the required details.',
+          },
+        })
+      } else {
+        setStoredDemoPredictionState({
+          requestKey,
+          state: {
+            status: 'error',
+            message: error instanceof Error ? error.message : 'Could not get a demo delivery time prediction.',
           },
         })
       }
@@ -892,16 +946,28 @@ function DispatchRequestDrawer({
                       <h3><Clock3 size={14} /> AI Delivery Time Prediction</h3>
                       <p>Request an estimate from the available assignment details.</p>
                     </div>
-                    <button
-                      className="dispatch-create-button dispatch-prediction-button"
-                      type="button"
-                      onClick={() => void handlePrediction()}
-                      disabled={predictionState.status === 'loading'}
-                    >
-                      {predictionState.status === 'loading' ? (
-                        <><span className="dispatch-prediction-spinner" aria-hidden="true" /> Predicting…</>
-                      ) : 'Predict Delivery Time'}
-                    </button>
+                    <div className="dispatch-prediction-actions">
+                      <button
+                        className="dispatch-create-button dispatch-prediction-button"
+                        type="button"
+                        onClick={() => void handlePrediction()}
+                        disabled={predictionState.status === 'loading'}
+                      >
+                        {predictionState.status === 'loading' ? (
+                          <><span className="dispatch-prediction-spinner" aria-hidden="true" /> Predicting…</>
+                        ) : 'Predict Delivery Time'}
+                      </button>
+                      <button
+                        className="dispatch-create-button dispatch-prediction-button dispatch-demo-prediction-button"
+                        type="button"
+                        onClick={() => void handleDemoPrediction()}
+                        disabled={demoPredictionState.status === 'loading'}
+                      >
+                        {demoPredictionState.status === 'loading' ? (
+                          <><span className="dispatch-prediction-spinner" aria-hidden="true" /> Predicting…</>
+                        ) : 'Try AI Delivery Time Prediction (Demo)'}
+                      </button>
+                    </div>
                   </div>
                   {predictionState.status === 'success' && (
                     <div className="dispatch-prediction-result" role="status" aria-live="polite">
@@ -915,6 +981,27 @@ function DispatchRequestDrawer({
                     <p className={`dispatch-prediction-message prediction-${predictionState.status}`} role="alert">
                       {predictionState.message}
                     </p>
+                  )}
+
+                  {demoPredictionState.status === 'success' && (
+                    <div className="dispatch-prediction-result dispatch-demo-prediction-result" role="status" aria-live="polite">
+                      <div className="dispatch-demo-disclaimer-badge">
+                        Research Demo — Simulated Dataset
+                      </div>
+                      <strong>{demoPredictionState.prediction.predictedDurationMinutes} minutes</strong>
+                      <span>Model version: {demoPredictionState.prediction.modelVersion}</span>
+                      <small className="dispatch-demo-note">Simulated prototype · Not an operational delivery commitment</small>
+                    </div>
+                  )}
+                  {(demoPredictionState.status === 'unavailable'
+                    || demoPredictionState.status === 'ineligible'
+                    || demoPredictionState.status === 'error') && (
+                    <div className={`dispatch-prediction-message prediction-${demoPredictionState.status}`} role="alert">
+                      <div className="dispatch-demo-disclaimer-badge">
+                        Research Demo — Simulated Dataset
+                      </div>
+                      <p>{demoPredictionState.message}</p>
+                    </div>
                   )}
                 </section>
               )}
