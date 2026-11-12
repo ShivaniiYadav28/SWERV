@@ -108,7 +108,7 @@ def make_model_features(
     return build_features(raw_features)
 
 
-@app.get("/health", response_model=HealthResponse)
+@app.api_route("/health", methods=["GET", "HEAD"], response_model=HealthResponse)
 def health(
     service: DeliveryModelService = Depends(get_model_service),
     demo_service: DeliveryModelService = Depends(get_demo_model_service),
@@ -127,6 +127,14 @@ def health(
         data["demo_model_available"] = demo_available
         data["demo_model_version"] = demo_service.model_version if demo_available else None
     return JSONResponse(content=data)
+
+
+@app.api_route("/", methods=["GET", "HEAD"], response_model=HealthResponse, include_in_schema=False)
+def root(
+    service: DeliveryModelService = Depends(get_model_service),
+    demo_service: DeliveryModelService = Depends(get_demo_model_service),
+) -> JSONResponse:
+    return health(service, demo_service)
 
 
 @app.post("/predict", response_model=PredictionResponse)

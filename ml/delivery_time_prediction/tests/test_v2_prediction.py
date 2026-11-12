@@ -172,6 +172,19 @@ class V2ModelPredictionTests(unittest.TestCase):
                     self.assertTrue(data["demo_model_available"])
                     self.assertEqual(data["demo_model_version"], "gradient_boosting-synthetic-2e7b05c087e5")
 
+                    # Verify HEAD probes on /health and / for Render zero-downtime deployment health checks
+                    head_health = call_api("HEAD", "/health")
+                    self.assertEqual(head_health.status_code, 200)
+                    self.assertEqual(head_health.text, "")
+
+                    head_root = call_api("HEAD", "/")
+                    self.assertEqual(head_root.status_code, 200)
+                    self.assertEqual(head_root.text, "")
+
+                    get_root = call_api("GET", "/")
+                    self.assertEqual(get_root.status_code, 200)
+                    self.assertEqual(get_root.json(), data)
+
     def test_priority_tier_effects_on_demo_predictions(self) -> None:
         """Verify priority tier effect in demo model."""
         with patch.dict(os.environ, {
