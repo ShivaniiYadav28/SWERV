@@ -905,40 +905,19 @@ function DispatchRequestDrawer({
                   </div>
                   {predictionState.status === 'success' && (
                     <div className="dispatch-prediction-card" role="status" aria-live="polite">
-                      <div className="dispatch-prediction-card-header">
-                        <span className="dispatch-prediction-label">Predicted Delivery Time</span>
-                        <span className="dispatch-prediction-badge">RESEARCH DEMO · SYNTHETIC DATASET</span>
-                      </div>
+                      <span className="dispatch-prediction-label">PREDICTED DELIVERY TIME</span>
                       <div className="dispatch-prediction-value">
                         <span className="dispatch-prediction-number">
                           {predictionState.prediction.predictedDurationMinutes}
                         </span>
                         <span className="dispatch-prediction-unit">minutes</span>
                       </div>
-                      <div className="dispatch-prediction-meta">
-                        <div className="dispatch-prediction-meta-item">
-                          <span className="dispatch-prediction-meta-label">Model</span>
-                          <span className="dispatch-prediction-meta-value">Gradient Boosting</span>
-                        </div>
-                        <div className="dispatch-prediction-meta-item">
-                          <span className="dispatch-prediction-meta-label">Version</span>
-                          <span className="dispatch-prediction-meta-value dispatch-prediction-version">
-                            {predictionState.prediction.modelVersion}
-                          </span>
-                        </div>
-                      </div>
-                      <p className="dispatch-prediction-disclaimer">
-                        Experimental prediction based on synthetic data. Not an operational delivery commitment.
-                      </p>
                     </div>
                   )}
                   {(predictionState.status === 'unavailable'
                     || predictionState.status === 'ineligible'
                     || predictionState.status === 'error') && (
                     <div className={`dispatch-prediction-message prediction-${predictionState.status}`} role="alert">
-                      <div className="dispatch-prediction-badge dispatch-prediction-badge-subtle">
-                        RESEARCH DEMO · SYNTHETIC DATASET
-                      </div>
                       <p>{predictionState.message}</p>
                     </div>
                   )}
