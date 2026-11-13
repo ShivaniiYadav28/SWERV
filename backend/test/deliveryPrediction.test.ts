@@ -8,7 +8,11 @@ import { DispatchRequest } from '../src/models/DispatchRequest.js';
 import { DispatchRequestActivity } from '../src/models/DispatchRequestActivity.js';
 import { User } from '../src/models/User.js';
 import { ensureDispatchRequestCollections } from '../src/services/dispatchRequestService.js';
-import { demoPredictionTimeoutMs, predictionTimeoutMs } from '../src/services/deliveryPredictionService.js';
+import {
+  demoPredictionAttemptTimeoutMs,
+  demoPredictionTimeoutMs,
+  predictionTimeoutMs,
+} from '../src/services/deliveryPredictionService.js';
 import { getMlServiceBaseUrl } from '../src/config/mlService.js';
 import { createAccessToken } from '../src/utils/jwt.js';
 
@@ -404,9 +408,10 @@ describe('demo delivery prediction endpoint', () => {
     });
   });
 
-  it('succeeds when demo ML service responds within 25s timeout and preserves 5s operational timeout', async () => {
+  it('uses a bounded demo deadline and preserves the 5s operational timeout', async () => {
     expect(predictionTimeoutMs).toBe(5_000);
-    expect(demoPredictionTimeoutMs).toBe(25_000);
+    expect(demoPredictionTimeoutMs).toBe(70_000);
+    expect(demoPredictionAttemptTimeoutMs).toBe(50_000);
 
     const dispatchRequest = await createDispatchRequest();
     const agent = await createAgent();
@@ -433,7 +438,7 @@ describe('demo delivery prediction endpoint', () => {
     expect(observedSignal?.aborted).toBe(false);
   });
 
-  it('returns 503 unavailable if demo ML service connection aborts due to timeout', async () => {
+  it('returns 503 unavailable when both demo attempts time out', async () => {
     const dispatchRequest = await createDispatchRequest();
     const agent = await createAgent();
     await assignRequest(dispatchRequest._id, agent.id);
@@ -448,11 +453,59 @@ describe('demo delivery prediction endpoint', () => {
       .set('Cookie', adminCookie)
       .expect(503);
 
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(response.body.success).toBe(false);
     expect(response.body.message).toContain('Demo prediction service is unavailable');
   });
 
-  it.each([502, 503, 504])('returns clear 503 unavailable when upstream returns HTTP %i with an HTML response', async (upstreamStatus) => {
+  it('retries a transient connection failure once and succeeds', async () => {
+    const dispatchRequest = await createDispatchRequest();
+    const agent = await createAgent();
+    await assignRequest(dispatchRequest._id, agent.id);
+
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new TypeError('fetch failed'))
+      .mockResolvedValueOnce(new Response(JSON.stringify(availableDemoPrediction), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await request(app)
+      .post(`/api/dispatch-requests/${dispatchRequest._id}/demo-prediction`)
+      .set('Cookie', adminCookie)
+      .expect(200);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(response.body.data.prediction.predictionType).toBe('simulated_demo');
+  });
+
+  it.each([502, 503, 504])('retries upstream HTTP %i once and succeeds when the service wakes', async (upstreamStatus) => {
+    const dispatchRequest = await createDispatchRequest();
+    const agent = await createAgent();
+    await assignRequest(dispatchRequest._id, agent.id);
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('<html>upstream unavailable</html>', {
+        status: upstreamStatus,
+        headers: { 'content-type': 'text/html' },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(availableDemoPrediction), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await request(app)
+      .post(`/api/dispatch-requests/${dispatchRequest._id}/demo-prediction`)
+      .set('Cookie', adminCookie)
+      .expect(200);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(response.body.data.prediction.predictionType).toBe('simulated_demo');
+  });
+
+  it.each([502, 503, 504])('returns clear 503 after both attempts receive upstream HTTP %i', async (upstreamStatus) => {
     const dispatchRequest = await createDispatchRequest();
     const agent = await createAgent();
     await assignRequest(dispatchRequest._id, agent.id);
@@ -469,13 +522,33 @@ describe('demo delivery prediction endpoint', () => {
       .set('Cookie', adminCookie)
       .expect(503);
 
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(response.body.success).toBe(false);
     expect(response.body.message).toContain('unavailable');
     expect(response.body.message).not.toContain('invalid response');
     expect(response.body.message).not.toContain('JSON');
   });
 
-  it('accepts upstream JSON unavailable prediction with non-null model_version and returns HTTP 503', async () => {
+  it.each([401, 422])('does not retry non-transient upstream HTTP %i', async (upstreamStatus) => {
+    const dispatchRequest = await createDispatchRequest();
+    const agent = await createAgent();
+    await assignRequest(dispatchRequest._id, agent.id);
+
+    const fetchMock = vi.fn().mockResolvedValue(new Response('<html>request rejected</html>', {
+      status: upstreamStatus,
+      headers: { 'content-type': 'text/html' },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await request(app)
+      .post(`/api/dispatch-requests/${dispatchRequest._id}/demo-prediction`)
+      .set('Cookie', adminCookie)
+      .expect(503);
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('returns unavailable after an upstream HTTP 503 response with a JSON body', async () => {
     const dispatchRequest = await createDispatchRequest();
     const agent = await createAgent();
     await assignRequest(dispatchRequest._id, agent.id);
@@ -493,7 +566,7 @@ describe('demo delivery prediction endpoint', () => {
       .set('Cookie', adminCookie)
       .expect(503);
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(response.body.success).toBe(false);
     expect(response.body.message).toContain('unavailable');
     expect(response.body.message).not.toContain('invalid response');
@@ -504,7 +577,7 @@ describe('demo delivery prediction endpoint', () => {
     const agent = await createAgent();
     await assignRequest(dispatchRequest._id, agent.id);
 
-    stubPythonResponse({
+    const fetchMock = stubPythonResponse({
       predicted_duration_minutes: null,
       prediction_type: 'simulated_demo',
       model_version: 'gradient_boosting-synthetic-2e7b05c087e5',
@@ -517,6 +590,7 @@ describe('demo delivery prediction endpoint', () => {
       .set('Cookie', adminCookie)
       .expect(503);
 
+    expect(fetchMock).toHaveBeenCalledOnce();
     expect(response.body.success).toBe(false);
     expect(response.body.message).toContain('unavailable');
     expect(response.body.message).not.toContain('invalid response');
@@ -555,13 +629,14 @@ describe('demo delivery prediction endpoint', () => {
     const dispatchRequest = await createDispatchRequest();
     const agent = await createAgent();
     await assignRequest(dispatchRequest._id, agent.id);
-    stubPythonResponse(malformedPayload, 200);
+    const fetchMock = stubPythonResponse(malformedPayload, 200);
 
     const response = await request(app)
       .post(`/api/dispatch-requests/${dispatchRequest._id}/demo-prediction`)
       .set('Cookie', adminCookie)
       .expect(502);
 
+    expect(fetchMock).toHaveBeenCalledOnce();
     expect(response.body.success).toBe(false);
     expect(response.body.message).toContain('invalid response');
   });
@@ -571,16 +646,18 @@ describe('demo delivery prediction endpoint', () => {
     const agent = await createAgent();
     await assignRequest(dispatchRequest._id, agent.id);
 
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{ invalid json syntax', {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{ invalid json syntax', {
       status: 200,
       headers: { 'content-type': 'application/json' },
-    })));
+    }));
+    vi.stubGlobal('fetch', fetchMock);
 
     const response = await request(app)
       .post(`/api/dispatch-requests/${dispatchRequest._id}/demo-prediction`)
       .set('Cookie', adminCookie)
       .expect(502);
 
+    expect(fetchMock).toHaveBeenCalledOnce();
     expect(response.body.success).toBe(false);
     expect(response.body.message).toContain('invalid response');
   });
@@ -608,7 +685,7 @@ describe('demo delivery prediction endpoint', () => {
     const dispatchRequest = await createDispatchRequest();
     const agent = await createAgent();
     await assignRequest(dispatchRequest._id, agent.id);
-    stubPythonResponse({
+    const fetchMock = stubPythonResponse({
       predicted_duration_minutes: null,
       prediction_type: 'simulated_demo',
       model_version: null,
@@ -621,6 +698,7 @@ describe('demo delivery prediction endpoint', () => {
       .set('Cookie', adminCookie)
       .expect(503);
 
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(response.body.success).toBe(false);
     expect(response.body.message).toContain('unavailable');
   });

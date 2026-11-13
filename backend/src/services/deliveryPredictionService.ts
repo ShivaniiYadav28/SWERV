@@ -4,7 +4,11 @@ import { DispatchRequestActivity } from '../models/DispatchRequestActivity.js';
 import { HttpError } from '../utils/httpError.js';
 
 export const predictionTimeoutMs = 5_000;
-export const demoPredictionTimeoutMs = 25_000;
+export const demoPredictionTimeoutMs = 70_000;
+export const demoPredictionAttemptTimeoutMs = 50_000;
+
+const demoPredictionMaxAttempts = 2;
+const demoPredictionRetryDelayMs = 1_000;
 
 type PredictionInput = {
   request_created_at: string;
@@ -255,65 +259,183 @@ function parsePythonDemoResponse(value: unknown): PythonDemoPredictionResponse |
   return response as PythonDemoPredictionResponse;
 }
 
+function isTransientConnectionError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.name === 'AbortError'
+    || error.name === 'TimeoutError'
+    || error instanceof TypeError;
+}
+
+function isTimeoutError(error: unknown): boolean {
+  return error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError');
+}
+
+async function waitBeforeDemoRetry(requestStartedAt: number): Promise<void> {
+  const remainingMs = demoPredictionTimeoutMs - (Date.now() - requestStartedAt);
+  if (remainingMs <= 0) return;
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, Math.min(demoPredictionRetryDelayMs, remainingMs));
+  });
+}
+
 async function requestPythonDemoPrediction(input: PredictionInput): Promise<DemoPredictionResult> {
   const baseUrl = getDemoMlServiceBaseUrl();
-  let response: Response;
-  try {
-    response = await fetch(`${baseUrl}/demo/predict`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify(input),
-      signal: AbortSignal.timeout(demoPredictionTimeoutMs),
-    });
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : 'Unknown connection error';
-    console.error(`[delivery-time-prediction] Could not reach ${baseUrl}/demo/predict: ${detail}`);
-    throw new HttpError(503, 'Demo prediction service is unavailable.');
-  }
+  const requestStartedAt = Date.now();
 
-  if (response.status === 502 || response.status === 503 || response.status === 504) {
-    throw new HttpError(503, 'Demo delivery time prediction is currently unavailable.');
-  }
-
-  let responseBody: unknown;
-  try {
-    responseBody = await response.json();
-  } catch (error) {
-    if (
-      !response.ok
-      || (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError'))
-    ) {
+  for (let attempt = 1; attempt <= demoPredictionMaxAttempts; attempt += 1) {
+    const remainingMs = demoPredictionTimeoutMs - (Date.now() - requestStartedAt);
+    if (remainingMs <= 0) {
+      console.warn('[delivery-time-prediction] Demo request deadline reached', {
+        attempt,
+        elapsed_ms: Date.now() - requestStartedAt,
+        reason: 'overall_timeout',
+      });
       throw new HttpError(503, 'Demo prediction service is unavailable.');
     }
-    throw new HttpError(502, 'Demo prediction service returned an invalid response.');
+
+    const attemptStartedAt = Date.now();
+    const controller = new AbortController();
+    let timedOut = false;
+    const attemptTimeoutMs = Math.min(demoPredictionAttemptTimeoutMs, remainingMs);
+    const attemptTimer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, attemptTimeoutMs);
+
+    try {
+      let response: Response;
+      try {
+        response = await fetch(`${baseUrl}/demo/predict`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', accept: 'application/json' },
+          body: JSON.stringify(input),
+          signal: controller.signal,
+        });
+      } catch (error) {
+        const elapsedMs = Date.now() - attemptStartedAt;
+        const reason = timedOut || isTimeoutError(error) ? 'timeout' : 'connection_error';
+        console.warn('[delivery-time-prediction] Demo upstream request failed', {
+          attempt,
+          elapsed_ms: elapsedMs,
+          reason,
+        });
+        if (!timedOut && !isTransientConnectionError(error)) {
+          throw new HttpError(503, 'Demo prediction service is unavailable.');
+        }
+        if (attempt === demoPredictionMaxAttempts) {
+          throw new HttpError(503, 'Demo prediction service is unavailable.');
+        }
+        await waitBeforeDemoRetry(requestStartedAt);
+        continue;
+      }
+
+      const elapsedMs = Date.now() - attemptStartedAt;
+      if ([502, 503, 504].includes(response.status)) {
+        console.warn('[delivery-time-prediction] Demo upstream returned a transient status', {
+          attempt,
+          upstream_status: response.status,
+          elapsed_ms: elapsedMs,
+        });
+        if (attempt === demoPredictionMaxAttempts) {
+          throw new HttpError(503, 'Demo delivery time prediction is currently unavailable.');
+        }
+        await waitBeforeDemoRetry(requestStartedAt);
+        continue;
+      }
+
+      let responseBody: unknown;
+      try {
+        responseBody = await response.json();
+      } catch (error) {
+        if (timedOut || isTimeoutError(error) || error instanceof TypeError) {
+          const reason = timedOut || isTimeoutError(error) ? 'timeout' : 'connection_error';
+          console.warn('[delivery-time-prediction] Demo upstream response failed', {
+            attempt,
+            upstream_status: response.status,
+            elapsed_ms: Date.now() - attemptStartedAt,
+            reason,
+          });
+          if (attempt < demoPredictionMaxAttempts) {
+            await waitBeforeDemoRetry(requestStartedAt);
+            continue;
+          }
+          throw new HttpError(503, 'Demo prediction service is unavailable.');
+        }
+        if (!response.ok) {
+          console.warn('[delivery-time-prediction] Demo upstream returned an invalid error response', {
+            attempt,
+            upstream_status: response.status,
+            elapsed_ms: Date.now() - attemptStartedAt,
+            reason: 'invalid_error_response',
+          });
+          throw new HttpError(503, 'Demo delivery time prediction is currently unavailable.');
+        }
+        console.warn('[delivery-time-prediction] Demo upstream returned malformed successful JSON', {
+          attempt,
+          upstream_status: response.status,
+          elapsed_ms: Date.now() - attemptStartedAt,
+          reason: 'invalid_json',
+        });
+        throw new HttpError(502, 'Demo prediction service returned an invalid response.');
+      }
+
+      const prediction = parsePythonDemoResponse(responseBody);
+      if (!prediction) {
+        const status = response.ok ? 502 : 503;
+        console.warn('[delivery-time-prediction] Demo upstream returned an invalid response', {
+          attempt,
+          upstream_status: response.status,
+          elapsed_ms: Date.now() - attemptStartedAt,
+          reason: response.ok ? 'invalid_success_response' : 'invalid_error_response',
+        });
+        throw new HttpError(
+          status,
+          response.ok
+            ? 'Demo prediction service returned an invalid response.'
+            : 'Demo delivery time prediction is currently unavailable.',
+        );
+      }
+      if (!response.ok) {
+        console.warn('[delivery-time-prediction] Demo upstream returned an error', {
+          attempt,
+          upstream_status: response.status,
+          elapsed_ms: Date.now() - attemptStartedAt,
+          reason: 'upstream_error',
+        });
+        if (response.status === 503 && prediction.prediction_status === 'unavailable') {
+          throw new HttpError(503, 'Demo delivery time prediction is currently unavailable.');
+        }
+        throw new HttpError(502, 'Demo prediction service could not process the request.');
+      }
+      if (prediction.prediction_status === 'unavailable') {
+        console.warn('[delivery-time-prediction] Demo model reported unavailable', {
+          attempt,
+          upstream_status: response.status,
+          elapsed_ms: Date.now() - attemptStartedAt,
+          reason: 'model_unavailable',
+        });
+        throw new HttpError(503, 'Demo delivery time prediction is currently unavailable.');
+      }
+
+      console.info('[delivery-time-prediction] Demo upstream response', {
+        attempt,
+        upstream_status: response.status,
+        elapsed_ms: Date.now() - attemptStartedAt,
+      });
+
+      return {
+        predictedDurationMinutes: Math.round(prediction.predicted_duration_minutes! * 10) / 10,
+        predictionType: 'simulated_demo',
+        modelVersion: prediction.model_version!,
+        predictionStatus: 'available',
+        disclaimer: 'Research Demo — Simulated Dataset',
+      };
+    } finally {
+      clearTimeout(attemptTimer);
+    }
   }
 
-  const prediction = parsePythonDemoResponse(responseBody);
-  if (!prediction) {
-    if (!response.ok) {
-      console.error(`[delivery-time-prediction] Demo model service returned HTTP ${response.status} with an invalid error response.`);
-      throw new HttpError(503, 'Demo delivery time prediction is currently unavailable.');
-    }
-    throw new HttpError(502, 'Demo prediction service returned an invalid response.');
-  }
-  if (!response.ok) {
-    console.error(`[delivery-time-prediction] Demo model service returned HTTP ${response.status}: ${prediction.message}`);
-    if (response.status === 503 && prediction.prediction_status === 'unavailable') {
-      throw new HttpError(503, 'Demo delivery time prediction is currently unavailable.');
-    }
-    throw new HttpError(502, 'Demo prediction service could not process the request.');
-  }
-  if (prediction.prediction_status === 'unavailable') {
-    throw new HttpError(503, 'Demo delivery time prediction is currently unavailable.');
-  }
-
-  return {
-    predictedDurationMinutes: Math.round(prediction.predicted_duration_minutes! * 10) / 10,
-    predictionType: 'simulated_demo',
-    modelVersion: prediction.model_version!,
-    predictionStatus: 'available',
-    disclaimer: 'Research Demo — Simulated Dataset',
-  };
+  throw new HttpError(503, 'Demo prediction service is unavailable.');
 }
 
 export async function predictDispatchRequestDeliveryTime(
