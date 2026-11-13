@@ -3,7 +3,8 @@ import { DispatchRequest, dispatchPriorities, packageCategories } from '../model
 import { DispatchRequestActivity } from '../models/DispatchRequestActivity.js';
 import { HttpError } from '../utils/httpError.js';
 
-const predictionTimeoutMs = 5_000;
+export const predictionTimeoutMs = 5_000;
+export const demoPredictionTimeoutMs = 25_000;
 
 type PredictionInput = {
   request_created_at: string;
@@ -244,7 +245,10 @@ function parsePythonDemoResponse(value: unknown): PythonDemoPredictionResponse |
     ) {
       return null;
     }
-  } else if (response.predicted_duration_minutes !== null || response.model_version !== null) {
+  } else if (
+    response.predicted_duration_minutes !== null
+    || !(response.model_version === null || typeof response.model_version === 'string')
+  ) {
     return null;
   }
 
@@ -259,7 +263,7 @@ async function requestPythonDemoPrediction(input: PredictionInput): Promise<Demo
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       body: JSON.stringify(input),
-      signal: AbortSignal.timeout(predictionTimeoutMs),
+      signal: AbortSignal.timeout(demoPredictionTimeoutMs),
     });
   } catch (error) {
     const detail = error instanceof Error ? error.message : 'Unknown connection error';
@@ -267,11 +271,18 @@ async function requestPythonDemoPrediction(input: PredictionInput): Promise<Demo
     throw new HttpError(503, 'Demo prediction service is unavailable.');
   }
 
+  if (response.status === 502 || response.status === 503 || response.status === 504) {
+    throw new HttpError(503, 'Demo delivery time prediction is currently unavailable.');
+  }
+
   let responseBody: unknown;
   try {
     responseBody = await response.json();
   } catch (error) {
-    if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+    if (
+      !response.ok
+      || (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError'))
+    ) {
       throw new HttpError(503, 'Demo prediction service is unavailable.');
     }
     throw new HttpError(502, 'Demo prediction service returned an invalid response.');
@@ -281,6 +292,7 @@ async function requestPythonDemoPrediction(input: PredictionInput): Promise<Demo
   if (!prediction) {
     if (!response.ok) {
       console.error(`[delivery-time-prediction] Demo model service returned HTTP ${response.status} with an invalid error response.`);
+      throw new HttpError(503, 'Demo delivery time prediction is currently unavailable.');
     }
     throw new HttpError(502, 'Demo prediction service returned an invalid response.');
   }
@@ -292,7 +304,7 @@ async function requestPythonDemoPrediction(input: PredictionInput): Promise<Demo
     throw new HttpError(502, 'Demo prediction service could not process the request.');
   }
   if (prediction.prediction_status === 'unavailable') {
-    throw new HttpError(502, 'Demo prediction service returned an invalid response.');
+    throw new HttpError(503, 'Demo delivery time prediction is currently unavailable.');
   }
 
   return {
