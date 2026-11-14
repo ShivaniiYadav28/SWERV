@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import mongoose from 'mongoose';
 import request from 'supertest';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
@@ -6,18 +6,21 @@ import app from '../src/app.js';
 import { DispatchRequest } from '../src/models/DispatchRequest.js';
 import { User } from '../src/models/User.js';
 import { createAccessToken } from '../src/utils/jwt.js';
-import { getDemandHistory, getRecentDemandHistory } from '../src/services/demandForecastingService.js';
+import {
+  forecastAttemptTimeoutMs,
+  forecastTimeoutMs,
+  requestDemandForecast,
+} from '../src/services/demandForecastingService.js';
 
 let mongo: MongoMemoryReplSet;
 let adminCookie = '';
 let operatorCookie = '';
 
 const validForecastRequest = {
-  mode: 'synthetic_demo' as const,
   forecastStartTimestamp: '',
   forecastPeriods: 3,
-  historicalRequestCounts: [] as number[],
 };
+const serviceApiKey = 'test-demand-forecasting-service-key-32-chars';
 
 function cookie(userId: string): string {
   return `swerv_access=${createAccessToken(userId)}`;
@@ -36,10 +39,23 @@ function makePythonResponse(
       request_count: index,
     })),
     model_version: 'gradient_boosting-synthetic-api-test',
+    history_source: 'synthetic_hourly_demand.csv',
+    history_provenance: 'Bundled synthetic CSV; not actual SWERV demand.',
     training_source: 'synthetic',
     synthetic_provenance: 'Synthetic test model; real-world accuracy is not validated.',
     ...overrides,
   };
+}
+
+function validPythonResponse(): Response {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => makePythonResponse({
+      forecast_start_timestamp: validForecastRequest.forecastStartTimestamp,
+      forecast_periods: validForecastRequest.forecastPeriods,
+    }),
+  } as Response;
 }
 
 function mockPythonService(
@@ -63,36 +79,21 @@ function forecast(cookieValue = adminCookie) {
     .send(validForecastRequest);
 }
 
-async function addDispatchRequestAt(createdAt: Date) {
-  return DispatchRequest.create({
-    customer: { name: 'History Customer', email: 'history@example.com', phone: '+1 555 111 2222' },
-    pickup: {
-      address: '10 North Street', city: 'Portland', region: 'Oregon',
-      postalCode: '97201', country: 'United States',
-    },
-    delivery: {
-      address: '25 River Road', city: 'Portland', region: 'Oregon',
-      postalCode: '97202', country: 'United States',
-    },
-    package: { description: 'Small boxed item', category: 'parcel', weightKg: 2, quantity: 1 },
-    priority: 'standard',
-    createdAt,
-  });
-}
-
 beforeAll(async () => {
   process.env.NODE_ENV = 'test';
   process.env.JWT_SECRET = 'swerv-demand-tests-secret-0123456789-abcdefghij';
   process.env.JWT_EXPIRES_IN = '1d';
   process.env.DEMAND_FORECASTING_SERVICE_URL = 'http://127.0.0.1:8004';
+  process.env.DEMAND_FORECASTING_API_KEY = serviceApiKey;
   mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
   await mongoose.connect(mongo.getUri());
-  const demoHistory = await getDemandHistory('synthetic_demo');
-  if (!demoHistory.available || !demoHistory.historicalRequestCounts) {
-    throw new Error('Synthetic demo dataset must provide 168 valid hourly counts for tests.');
-  }
-  validForecastRequest.forecastStartTimestamp = demoHistory.forecastStartTimestamp;
-  validForecastRequest.historicalRequestCounts = demoHistory.historicalRequestCounts;
+  validForecastRequest.forecastStartTimestamp = new Date(
+    (Math.floor(Date.now() / (60 * 60 * 1_000)) + 1) * 60 * 60 * 1_000,
+  ).toISOString();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 beforeEach(async () => {
@@ -113,90 +114,17 @@ afterAll(async () => {
 });
 
 describe('demand forecasting endpoint', () => {
-  it('returns a clear unavailable history response when the recorded date range is too short', async () => {
-    const now = new Date('2026-11-07T17:45:00.000Z');
-    await addDispatchRequestAt(new Date('2026-11-03T10:34:00.000Z'));
-
-    const history = await getRecentDemandHistory(now);
-
-    expect(history.available).toBe(false);
-    expect(history.requiredHistoryHours).toBe(168);
-    expect(history.availableHistoryHours).toBeLessThan(168);
-    expect(history.historicalRequestCounts).toBeNull();
-    expect(history.source).toBe('DispatchRequest.createdAt');
-  });
-
-  it('returns 168 UTC hourly counts with zero-filled hours only when coverage is complete', async () => {
-    const forecastStart = new Date('2026-11-07T17:00:00.000Z');
-    const historyStart = new Date(forecastStart.getTime() - 168 * 60 * 60 * 1_000);
-    await addDispatchRequestAt(new Date(historyStart.getTime() - 60_000));
-    await addDispatchRequestAt(new Date(historyStart.getTime() + 60_000));
-    await addDispatchRequestAt(new Date(historyStart.getTime() + 60 * 60 * 1_000 + 60_000));
-
-    const history = await getRecentDemandHistory(new Date('2026-11-07T17:45:00.000Z'));
-
-    expect(history.available).toBe(true);
-    expect(history.forecastStartTimestamp).toBe(forecastStart.toISOString());
-    expect(history.historyStartTimestamp).toBe(historyStart.toISOString());
-    expect(history.historicalRequestCounts).toHaveLength(168);
-    expect(history.historicalRequestCounts?.slice(0, 3)).toEqual([1, 1, 0]);
-    expect(history.historicalRequestCounts?.reduce((sum, value) => sum + value, 0)).toBe(2);
-  });
-
-  it('protects the read-only hourly history endpoint for Admin users', async () => {
-    await request(app).get('/api/demand-forecasting/history?mode=real').expect(401);
-    await request(app)
-      .get('/api/demand-forecasting/history?mode=real')
-      .set('Cookie', operatorCookie)
-      .expect(403);
-    const response = await request(app)
-      .get('/api/demand-forecasting/history?mode=real')
-      .set('Cookie', adminCookie)
-      .expect(200);
-
-    expect(response.body.data.history).toMatchObject({
-      available: false,
-      mode: 'real',
-      requiredHistoryHours: 168,
-      historicalRequestCounts: null,
-      source: 'DispatchRequest.createdAt',
-    });
-    expect(response.body.data.history).not.toHaveProperty('customer');
-  });
-
-  it('provides exactly 168 continuous synthetic demo hours with clear provenance', async () => {
+  it('does not expose a backend history endpoint or read operational records', async () => {
+    const findOneSpy = vi.spyOn(DispatchRequest, 'findOne');
+    const aggregateSpy = vi.spyOn(DispatchRequest, 'aggregate');
     const beforeCount = await DispatchRequest.countDocuments();
-    const history = await getDemandHistory('synthetic_demo');
-    const afterCount = await DispatchRequest.countDocuments();
-
-    expect(history).toMatchObject({
-      available: true,
-      mode: 'synthetic_demo',
-      requiredHistoryHours: 168,
-      availableHistoryHours: 168,
-      source: 'synthetic_hourly_demand.csv',
-    });
-    expect(history.provenance).toContain('does not represent actual SWERV demand');
-    expect(history.historicalRequestCounts).toHaveLength(168);
-    expect(history.historicalRequestCounts?.every((count) => Number.isSafeInteger(count) && count >= 0)).toBe(true);
-    expect(Date.parse(history.forecastStartTimestamp) - Date.parse(history.historyStartTimestamp)).toBe(168 * 60 * 60 * 1000);
-    expect(afterCount).toBe(beforeCount);
+    await request(app).get('/api/demand-forecasting/history').expect(404);
+    expect(findOneSpy).not.toHaveBeenCalled();
+    expect(aggregateSpy).not.toHaveBeenCalled();
+    expect(await DispatchRequest.countDocuments()).toBe(beforeCount);
   });
 
-  it('labels the synthetic demo history in the Admin API response', async () => {
-    const response = await request(app)
-      .get('/api/demand-forecasting/history?mode=synthetic_demo')
-      .set('Cookie', adminCookie)
-      .expect(200);
-    expect(response.body.data.history).toMatchObject({
-      available: true,
-      mode: 'synthetic_demo',
-      source: 'synthetic_hourly_demand.csv',
-    });
-    expect(response.body.data.history.provenance).toContain('does not represent actual SWERV demand');
-  });
-
-  it('forwards validated UTC history and returns forecast model metadata', async () => {
+  it('sends only forecast start and horizon and validates synthetic ML metadata', async () => {
     const response = await forecast().expect(200);
     const upstreamCall = vi.mocked(fetch).mock.calls[0];
     const upstreamInput = JSON.parse(String(upstreamCall?.[1]?.body)) as Record<string, unknown>;
@@ -205,11 +133,14 @@ describe('demand forecasting endpoint', () => {
     expect(upstreamInput).toEqual({
       forecast_start_timestamp: validForecastRequest.forecastStartTimestamp,
       forecast_periods: validForecastRequest.forecastPeriods,
-      historical_request_counts: validForecastRequest.historicalRequestCounts,
+    });
+    expect(vi.mocked(fetch).mock.calls[0]?.[1]?.headers).toMatchObject({
+      authorization: `Bearer ${serviceApiKey}`,
     });
     expect(response.body.data.forecast).toMatchObject({
       mode: 'synthetic_demo',
       historySource: 'synthetic_hourly_demand.csv',
+      historyProvenance: 'Bundled synthetic CSV; not actual SWERV demand.',
       forecastStartTimestamp: new Date(validForecastRequest.forecastStartTimestamp).toISOString(),
       forecastPeriods: 3,
       predictions: [
@@ -221,6 +152,7 @@ describe('demand forecasting endpoint', () => {
       trainingSource: 'synthetic',
       syntheticProvenance: 'Synthetic test model; real-world accuracy is not validated.',
     });
+    expect(await DispatchRequest.countDocuments()).toBe(0);
   });
 
   it.each([24, 72, 168])('supports an explicit synthetic demo forecast horizon of %i hours', async (periods) => {
@@ -238,15 +170,19 @@ describe('demand forecasting endpoint', () => {
     expect(response.body.data.forecast.predictions).toHaveLength(periods);
   });
 
-  it('keeps real mode blocked and does not silently fall back to synthetic history', async () => {
+  it('rejects real mode and client-supplied operational history', async () => {
     const beforeCount = await DispatchRequest.countDocuments();
-    const response = await request(app)
+    await request(app)
       .post('/api/demand-forecasting/forecast')
       .set('Cookie', adminCookie)
       .send({ ...validForecastRequest, mode: 'real' })
-      .expect(409);
+      .expect(400);
+    await request(app)
+      .post('/api/demand-forecasting/forecast')
+      .set('Cookie', adminCookie)
+      .send({ ...validForecastRequest, historical_request_counts: Array(168).fill(1) })
+      .expect(400);
     const afterCount = await DispatchRequest.countDocuments();
-    expect(response.body.message).toContain('No recorded dispatch history');
     expect(fetch).not.toHaveBeenCalled();
     expect(afterCount).toBe(beforeCount);
   });
@@ -257,15 +193,13 @@ describe('demand forecasting endpoint', () => {
     await forecast(adminCookie).expect(200);
   });
 
-  it('rejects non-UTC or unaligned timestamps, invalid horizons, and invalid history', async () => {
+  it('rejects non-UTC or unaligned timestamps and invalid horizons', async () => {
     const invalidRequests = [
       { ...validForecastRequest, forecastStartTimestamp: '2026-11-08T00:00:00' },
       { ...validForecastRequest, forecastStartTimestamp: '2026-11-08T00:30:00Z' },
       { ...validForecastRequest, forecastStartTimestamp: '2026-11-08T03:00:00+03:00' },
       { ...validForecastRequest, forecastPeriods: 0 },
       { ...validForecastRequest, forecastPeriods: 169 },
-      { ...validForecastRequest, historicalRequestCounts: Array(167).fill(1) },
-      { ...validForecastRequest, historicalRequestCounts: [-1, ...Array(167).fill(1)] },
     ];
 
     for (const body of invalidRequests) {
@@ -279,27 +213,128 @@ describe('demand forecasting endpoint', () => {
   });
 
   it('maps an offline or timed-out Python service to a safe 503 response', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('private connection detail'); }));
+    const fetchMock = vi.fn(async () => { throw new TypeError('private connection detail'); });
+    vi.stubGlobal('fetch', fetchMock);
 
     const response = await forecast().expect(503);
     expect(response.body.message).toContain('unavailable or timed out');
     expect(response.body.message).not.toContain('private connection detail');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries a transient connection failure once and returns the second successful forecast', async () => {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new TypeError('connection refused'))
+      .mockResolvedValueOnce(validPythonResponse());
+    vi.stubGlobal('fetch', fetchMock);
+
+    await forecast().expect(200);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([502, 503, 504])('retries upstream HTTP %i once', async (status) => {
+    const transientResponse = {
+      ok: false,
+      status,
+      json: async () => ({ detail: 'private upstream detail' }),
+    } as Response;
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(transientResponse)
+      .mockResolvedValueOnce(validPythonResponse());
+    vi.stubGlobal('fetch', fetchMock);
+
+    await forecast().expect(200);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('reports an unavailable upstream model without returning its internal detail', async () => {
-    mockPythonService({ detail: 'private model path' }, 503);
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      status: 503,
+      json: async () => ({ detail: 'private model path' }),
+    }) as Response);
+    vi.stubGlobal('fetch', fetchMock);
 
     const response = await forecast().expect(503);
-    expect(response.body.message).toContain('model is currently unavailable');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(response.body.message).toContain('currently unavailable');
     expect(response.body.message).not.toContain('private model path');
   });
 
   it('reports upstream validation errors as an integration error', async () => {
-    mockPythonService({ detail: 'internal request details' }, 422);
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      status: 422,
+      json: async () => ({ detail: 'internal request details' }),
+    }) as Response);
+    vi.stubGlobal('fetch', fetchMock);
 
     const response = await forecast().expect(502);
+    expect(fetchMock).toHaveBeenCalledOnce();
     expect(response.body.message).toContain('rejected the validated request');
     expect(response.body.message).not.toContain('internal request details');
+  });
+
+  it.each([401, 403])('does not retry ML authentication failures with HTTP %i', async (status) => {
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      status,
+      json: async () => ({ detail: 'unauthorized' }),
+    }) as Response);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await forecast().expect(503);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('returns a safe configuration error without calling upstream when the service key is missing', async () => {
+    const originalKey = process.env.DEMAND_FORECASTING_API_KEY;
+    delete process.env.DEMAND_FORECASTING_API_KEY;
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const response = await forecast().expect(503);
+      expect(response.body.message).not.toContain(serviceApiKey);
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      if (originalKey === undefined) delete process.env.DEMAND_FORECASTING_API_KEY;
+      else process.env.DEMAND_FORECASTING_API_KEY = originalKey;
+    }
+  });
+
+  it('uses a bounded overall deadline and preserves authenticated backend access', async () => {
+    expect(forecastTimeoutMs).toBe(70_000);
+    expect(forecastAttemptTimeoutMs).toBe(50_000);
+    await request(app).post('/api/demand-forecasting/forecast').send(validForecastRequest).expect(401);
+    await forecast(operatorCookie).expect(403);
+  });
+
+  it('uses only the remaining overall deadline for the second attempt', async () => {
+    vi.useFakeTimers();
+    const requestStartedAt = Date.now();
+    const abortTimes: number[] = [];
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => {
+        abortTimes.push(Date.now());
+        reject(new DOMException('Aborted', 'AbortError'));
+      }, { once: true });
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const forecastPromise = requestDemandForecast(validForecastRequest);
+      const forecastRejection = expect(forecastPromise).rejects.toMatchObject({ status: 503 });
+      await vi.advanceTimersByTimeAsync(forecastTimeoutMs);
+      await forecastRejection;
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(abortTimes).toEqual([
+        requestStartedAt + forecastAttemptTimeoutMs,
+        requestStartedAt + forecastTimeoutMs,
+      ]);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('rejects invalid prediction rows or non-synthetic model metadata', async () => {
@@ -307,15 +342,29 @@ describe('demand forecasting endpoint', () => {
       forecast_start_timestamp: validForecastRequest.forecastStartTimestamp,
       forecast_periods: validForecastRequest.forecastPeriods,
     }, { training_source: 'real' });
-    mockPythonService(invalidMetadata);
+    const invalidMetadataFetch = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => invalidMetadata,
+    }) as Response);
+    vi.stubGlobal('fetch', invalidMetadataFetch);
     await forecast().expect(502);
+    expect(invalidMetadataFetch).toHaveBeenCalledOnce();
 
-    const invalidPrediction = makePythonResponse({
-      forecast_start_timestamp: validForecastRequest.forecastStartTimestamp,
-      forecast_periods: validForecastRequest.forecastPeriods,
+    const invalidPredictionFetch = vi.fn(async () => {
+      const invalidPrediction = makePythonResponse({
+        forecast_start_timestamp: validForecastRequest.forecastStartTimestamp,
+        forecast_periods: validForecastRequest.forecastPeriods,
+      });
+      (invalidPrediction.predictions[0] as { request_count: number }).request_count = -1;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => invalidPrediction,
+      } as Response;
     });
-    (invalidPrediction.predictions[0] as { request_count: number }).request_count = -1;
-    mockPythonService(invalidPrediction);
+    vi.stubGlobal('fetch', invalidPredictionFetch);
     await forecast().expect(502);
+    expect(invalidPredictionFetch).toHaveBeenCalledOnce();
   });
 });

@@ -24,3 +24,11 @@ export function getDemandForecastingServiceUrl(): string {
 
   return `${parsedUrl.origin}${parsedUrl.pathname.replace(/\/+$/, '')}`;
 }
+
+export function getDemandForecastingServiceApiKey(): string {
+  const apiKey = process.env.DEMAND_FORECASTING_API_KEY?.trim();
+  if (!apiKey || apiKey.length < 32) {
+    throw new HttpError(503, 'Demand forecasting service is not configured correctly.');
+  }
+  return apiKey;
+}

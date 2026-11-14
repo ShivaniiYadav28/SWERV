@@ -3,8 +3,8 @@ import { Activity, AlertTriangle, BarChart3, Menu, RefreshCw, TrendingUp } from 
 import { useNavigate } from 'react-router-dom'
 import { DashboardSidebar } from '../components/DashboardSidebar'
 import { useAuth } from '../hooks/useAuth'
-import { getDemandHistory, requestDemandForecast, type DemandDataMode } from '../lib/demandForecast'
-import type { DemandForecast, DemandHistory, HourlyDemandPrediction } from '../types/demandForecast'
+import { requestDemandForecast } from '../lib/demandForecast'
+import type { DemandForecast, HourlyDemandPrediction } from '../types/demandForecast'
 import '../App.css'
 import './demand-forecasting.css'
 
@@ -12,7 +12,6 @@ type ForecastHorizon = 24 | 72 | 168
 
 type ForecastPageState =
   | { status: 'loading' }
-  | { status: 'history-unavailable'; history: DemandHistory }
   | { status: 'error'; message: string }
   | { status: 'success'; forecast: DemandForecast }
 
@@ -56,7 +55,6 @@ function formatDay(date: string): string {
 export function DemandForecastingPage() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [horizon, setHorizon] = useState<ForecastHorizon>(24)
-  const [mode, setMode] = useState<DemandDataMode>('real')
   const [pageState, setPageState] = useState<ForecastPageState>({ status: 'loading' })
   const [refreshKey, setRefreshKey] = useState(0)
   const latestRequest = useRef(0)
@@ -67,17 +65,12 @@ export function DemandForecastingPage() {
     const requestNumber = ++latestRequest.current
     setPageState({ status: 'loading' })
     try {
-      const history = await getDemandHistory(mode)
-      if (requestNumber !== latestRequest.current) return
-      if (!history.available || !history.historicalRequestCounts) {
-        setPageState({ status: 'history-unavailable', history })
-        return
-      }
+      const forecastStartTimestamp = new Date(
+        (Math.floor(Date.now() / (60 * 60 * 1_000)) + 1) * 60 * 60 * 1_000,
+      ).toISOString()
       const forecast = await requestDemandForecast({
-        mode,
-        forecastStartTimestamp: history.forecastStartTimestamp,
+        forecastStartTimestamp,
         forecastPeriods: horizon,
-        historicalRequestCounts: history.historicalRequestCounts,
       })
       if (requestNumber !== latestRequest.current) return
       setPageState({ status: 'success', forecast })
@@ -88,7 +81,7 @@ export function DemandForecastingPage() {
         message: error instanceof Error ? error.message : 'The demand forecast could not be loaded.',
       })
     }
-  }, [horizon, mode])
+  }, [horizon])
 
   useEffect(() => {
     const loadTimer = window.setTimeout(() => void loadForecast(), 0)
@@ -140,7 +133,7 @@ export function DemandForecastingPage() {
             <span>Workspace</span><span className="crumb-slash">/</span><strong>Demand forecasting</strong>
           </div>
           <div className="topbar-actions">
-            <div className="environment-pill"><i /> {mode === 'real' ? 'Real history' : 'Synthetic demo'}</div>
+            <div className="environment-pill"><i /> Synthetic demo</div>
             <div className="top-avatar">{user?.name.trim().charAt(0).toUpperCase()}</div>
           </div>
         </header>
@@ -150,7 +143,7 @@ export function DemandForecastingPage() {
             <div>
               <div className="eyebrow">ADMIN WORKSPACE <span className="eyebrow-dot" /> AI FORECASTING</div>
               <h1>Demand Forecasting</h1>
-              <p className="page-subtitle">{mode === 'real' ? 'Forecasting from recorded dispatch creation counts when enough history exists.' : 'A demonstration forecast using the bundled synthetic hourly dataset.'}</p>
+              <p className="page-subtitle">A demonstration forecast using only generated synthetic hourly data.</p>
             </div>
             <button
               className="dashboard-refresh"
@@ -166,26 +159,9 @@ export function DemandForecastingPage() {
           <section className="demand-warning" role="note">
             <AlertTriangle size={18} aria-hidden="true" />
             <div>
-              <strong>{mode === 'synthetic_demo' ? 'Synthetic Demo Mode — not actual SWERV demand' : 'Real Data Mode — incomplete history stays unavailable'}</strong>
-              <p>{mode === 'synthetic_demo'
-                ? 'Both the input history and forecast are a demonstration using generated data. They do not represent SWERV demand.'
-                : 'This mode uses only recorded MongoDB dispatch creation counts. No missing hours are filled; the model itself was trained on synthetic data and has no real-world accuracy validation.'}</p>
+              <strong>Synthetic Demo — not actual SWERV demand</strong>
+              <p>Both the input history and forecast use generated data. This model has not been validated on real business or operational records and must not be used for operational decisions.</p>
             </div>
-          </section>
-
-          <section className="demand-controls panel" aria-label="Forecast controls">
-            <div>
-              <label htmlFor="demand-mode">Data mode</label>
-              <p>Choose the history source explicitly.</p>
-            </div>
-            <select
-              id="demand-mode"
-              value={mode}
-              onChange={(event) => setMode(event.target.value as DemandDataMode)}
-            >
-              <option value="real">Real Data Mode</option>
-              <option value="synthetic_demo">Synthetic Demo Mode</option>
-            </select>
           </section>
 
           <section className="demand-controls panel" aria-label="Forecast horizon">
@@ -207,23 +183,8 @@ export function DemandForecastingPage() {
           {pageState.status === 'loading' && (
             <section className="demand-state panel" role="status">
               <span className="spinner spinner-small" />
-              <strong>{mode === 'real' ? 'Checking recorded hourly history…' : 'Loading the selected synthetic demo history…'}</strong>
-              <p>A forecast is requested only after the selected source provides 168 valid consecutive hours.</p>
-            </section>
-          )}
-
-          {pageState.status === 'history-unavailable' && (
-            <section className="demand-state demand-empty panel" role="status">
-              <Activity size={23} aria-hidden="true" />
-              <div>
-                <h2>{mode === 'real' ? 'Not enough recorded history to forecast' : 'Synthetic demo history is unavailable'}</h2>
-                <p>{pageState.history.message}</p>
-                <p>
-                  The model needs {pageState.history.requiredHistoryHours} consecutive UTC hourly counts;
-                  selected data currently covers {pageState.history.availableHistoryHours} hours.
-                  No forecast was requested and no missing real history was filled with assumed demand.
-                </p>
-              </div>
+              <strong>Requesting a synthetic demo forecast…</strong>
+              <p>The ML service validates and loads the bundled synthetic history.</p>
             </section>
           )}
 
@@ -245,12 +206,7 @@ export function DemandForecastingPage() {
                 <article className="panel demand-summary-card">
                   <span>Peak hourly demand</span>
                   <strong>{peakCount.toLocaleString()}</strong>
-                  <small>Predicted requests in one UTC hour</small>
-                </article>
-                <article className="panel demand-summary-card">
-                  <span>Illustrative fleet capacity</span>
-                  <strong>{Math.ceil(peakCount * 1.2).toLocaleString()}</strong>
-                  <small>Peak × 1.2 buffer; assumes one request per agent per hour</small>
+                  <small>Illustrative synthetic requests in one UTC hour</small>
                 </article>
                 <article className="panel demand-summary-card">
                   <span>Model version</span>

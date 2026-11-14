@@ -1,36 +1,19 @@
-import { getDemandForecastingServiceUrl } from '../config/demandForecastingService.js';
-import { DispatchRequest } from '../models/DispatchRequest.js';
+import {
+  getDemandForecastingServiceApiKey,
+  getDemandForecastingServiceUrl,
+} from '../config/demandForecastingService.js';
 import { HttpError } from '../utils/httpError.js';
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-const forecastTimeoutMs = 5_000;
+export const forecastTimeoutMs = 70_000;
+export const forecastAttemptTimeoutMs = 50_000;
 const maximumForecastPeriods = 168;
-const requiredHistoryHours = 168;
-const millisecondsPerHour = 60 * 60 * 1_000;
-const workspaceDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '../../../ml/demand_forecasting');
-const syntheticDatasetPath = resolve(workspaceDirectory, 'data/synthetic_hourly_demand.csv');
-export type DemandDataMode = 'real' | 'synthetic_demo';
-
-export type DemandHistoryResult = {
-  available: boolean;
-  message: string;
-  forecastStartTimestamp: string;
-  historyStartTimestamp: string;
-  requiredHistoryHours: number;
-  availableHistoryHours: number;
-  historicalRequestCounts: number[] | null;
-  mode: DemandDataMode;
-  source: 'DispatchRequest.createdAt' | 'synthetic_hourly_demand.csv';
-  provenance: string;
-};
+const maximumForecastAttempts = 2;
+const retryDelayMs = 1_000;
+const syntheticHistorySource = 'synthetic_hourly_demand.csv' as const;
 
 export type DemandForecastInput = {
-  mode: DemandDataMode;
   forecastStartTimestamp: string;
   forecastPeriods: number;
-  historicalRequestCounts: number[];
 };
 
 export type HourlyDemandPrediction = {
@@ -39,8 +22,8 @@ export type HourlyDemandPrediction = {
 };
 
 export type DemandForecastResult = {
-  mode: DemandDataMode;
-  historySource: DemandHistoryResult['source'];
+  mode: 'synthetic_demo';
+  historySource: typeof syntheticHistorySource;
   historyProvenance: string;
   forecastStartTimestamp: string;
   forecastPeriods: number;
@@ -50,168 +33,29 @@ export type DemandForecastResult = {
   syntheticProvenance: string;
 };
 
-type PythonDemandForecastResponse = {
-  forecast_start_timestamp: string;
-  forecast_periods: number;
-  predictions: Array<{ timestamp: string; request_count: number }>;
-  model_version: string;
-  training_source: 'synthetic';
-  synthetic_provenance: string;
-};
-
-export async function getDemandHistory(
-  mode: DemandDataMode,
-  now = new Date(),
-): Promise<DemandHistoryResult> {
-  if (mode === 'synthetic_demo') return getSyntheticDemoHistory();
-  return getRecentDemandHistory(now);
-}
-
-export async function getRecentDemandHistory(now = new Date()): Promise<DemandHistoryResult> {
-  const forecastStart = new Date(Math.floor(now.getTime() / millisecondsPerHour) * millisecondsPerHour);
-  const historyStart = new Date(forecastStart.getTime() - requiredHistoryHours * millisecondsPerHour);
-  const earliestRequest = await DispatchRequest.findOne({ createdAt: { $type: 'date' } })
-    .select('createdAt')
-    .sort({ createdAt: 1 })
-    .lean();
-  const availableHistoryHours = earliestRequest?.createdAt instanceof Date
-    ? Math.max(0, Math.min(
-      requiredHistoryHours,
-      Math.floor((forecastStart.getTime() - earliestRequest.createdAt.getTime()) / millisecondsPerHour),
-    ))
-    : 0;
-
-  if (!earliestRequest || earliestRequest.createdAt > historyStart) {
-    return {
-      available: false,
-      message: earliestRequest
-        ? `Only ${availableHistoryHours} of ${requiredHistoryHours} required hourly history buckets are covered by recorded dispatch data.`
-        : 'No recorded dispatch history is available for a forecast.',
-      forecastStartTimestamp: forecastStart.toISOString(),
-      historyStartTimestamp: historyStart.toISOString(),
-      requiredHistoryHours,
-      availableHistoryHours,
-      historicalRequestCounts: null,
-      source: 'DispatchRequest.createdAt',
-      mode: 'real',
-      provenance: 'Read-only counts from DispatchRequest.createdAt; incomplete hours are not estimated.',
-    };
-  }
-
-  const hourlyGroups = await DispatchRequest.aggregate<{
-    _id: string;
-    requestCount: number;
-  }>([
-    { $match: { createdAt: { $gte: historyStart, $lt: forecastStart } } },
-    {
-      $group: {
-        _id: {
-          $dateToString: {
-            format: '%Y-%m-%dT%H:00:00.000Z',
-            date: '$createdAt',
-            timezone: 'UTC',
-          },
-        },
-        requestCount: { $sum: 1 },
-      },
-    },
-  ]);
-  const counts = Array<number>(requiredHistoryHours).fill(0);
-  for (const bucket of hourlyGroups) {
-    const index = (Date.parse(bucket._id) - historyStart.getTime()) / millisecondsPerHour;
-    if (Number.isInteger(index) && index >= 0 && index < counts.length) {
-      counts[index] = bucket.requestCount;
-    }
-  }
-
-  return {
-    available: true,
-    message: 'A complete 168-hour history is available from recorded dispatch creation times.',
-    forecastStartTimestamp: forecastStart.toISOString(),
-    historyStartTimestamp: historyStart.toISOString(),
-    requiredHistoryHours,
-    availableHistoryHours: requiredHistoryHours,
-    historicalRequestCounts: counts,
-    source: 'DispatchRequest.createdAt',
-    mode: 'real',
-    provenance: 'Read-only counts from DispatchRequest.createdAt; zero buckets are included only inside the covered recorded window.',
-  };
-}
-
-function getSyntheticDemoHistory(): DemandHistoryResult {
-  const unavailable = (message: string, availableHistoryHours = 0): DemandHistoryResult => ({
-    available: false,
-    message,
-    forecastStartTimestamp: '',
-    historyStartTimestamp: '',
-    requiredHistoryHours,
-    availableHistoryHours,
-    historicalRequestCounts: null,
-    mode: 'synthetic_demo',
-    source: 'synthetic_hourly_demand.csv',
-    provenance: 'Generated synthetic hourly dataset; it does not represent actual SWERV demand.',
-  });
-
-  let fileContents: string;
-  try {
-    fileContents = readFileSync(syntheticDatasetPath, 'utf8');
-  } catch {
-    return unavailable('The bundled synthetic demo history is unavailable.');
-  }
-
-  const rows = fileContents.trim().split(/\r?\n/);
-  if (rows.length < requiredHistoryHours + 1 || rows[0] !== 'timestamp,hour_of_day,day_of_week,is_weekend,month,trend_index,request_count,data_source') {
-    return unavailable('The bundled synthetic demo history has an invalid format.');
-  }
-  const parsedRows: Array<{ timestamp: number; count: number }> = [];
-  for (const row of rows.slice(1)) {
-    const columns = row.split(',');
-    if (columns.length !== 8 || columns[7] !== 'synthetic') return unavailable('The bundled history contains invalid or non-synthetic rows.');
-    const timestamp = Date.parse(columns[0]);
-    const count = Number(columns[6]);
-    if (
-      !Number.isFinite(timestamp)
-      || !columns[0].endsWith('+00:00')
-      || new Date(timestamp).getUTCMinutes() !== 0
-      || new Date(timestamp).getUTCSeconds() !== 0
-      || new Date(timestamp).getUTCMilliseconds() !== 0
-      || !/^(0|[1-9]\d*)$/.test(columns[6])
-      || !Number.isSafeInteger(count)
-      || count < 0
-    ) return unavailable('The bundled history contains invalid hourly values.');
-    parsedRows.push({ timestamp, count });
-  }
-  for (let index = 1; index < parsedRows.length; index += 1) {
-    if (parsedRows[index].timestamp - parsedRows[index - 1].timestamp !== millisecondsPerHour) {
-      return unavailable('The bundled synthetic history does not contain continuous hourly buckets.');
-    }
-  }
-  const historyRows = parsedRows.slice(-requiredHistoryHours);
-  if (historyRows.length !== requiredHistoryHours) return unavailable('The bundled synthetic history has fewer than 168 hourly buckets.');
-  const historyStart = new Date(historyRows[0].timestamp);
-  const forecastStart = new Date(historyRows[historyRows.length - 1].timestamp + millisecondsPerHour);
-  return {
-    available: true,
-    message: 'A complete 168-hour history is available from the explicitly selected synthetic demo dataset.',
-    forecastStartTimestamp: forecastStart.toISOString(),
-    historyStartTimestamp: historyStart.toISOString(),
-    requiredHistoryHours,
-    availableHistoryHours: requiredHistoryHours,
-    historicalRequestCounts: historyRows.map((row) => row.count),
-    mode: 'synthetic_demo',
-    source: 'synthetic_hourly_demand.csv',
-    provenance: 'Generated synthetic hourly dataset; it does not represent actual SWERV demand.',
-  };
-}
-
 function expectedForecastTimestamp(startTimestamp: string, periodIndex: number): string {
   return new Date(Date.parse(startTimestamp) + periodIndex * 60 * 60 * 1_000).toISOString();
+}
+
+function isTransientError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.name === 'AbortError'
+    || error.name === 'TimeoutError'
+    || error instanceof TypeError;
+}
+
+async function waitBeforeRetry(requestStartedAt: number): Promise<void> {
+  const remainingMs = forecastTimeoutMs - (Date.now() - requestStartedAt);
+  if (remainingMs <= 0) return;
+  await new Promise<void>((resolveDelay) => {
+    setTimeout(resolveDelay, Math.min(retryDelayMs, remainingMs));
+  });
 }
 
 function parsePythonForecast(
   value: unknown,
   input: DemandForecastInput,
-): Omit<DemandForecastResult, 'mode' | 'historySource' | 'historyProvenance'> | null {
+): Omit<DemandForecastResult, 'mode'> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const response = value as Record<string, unknown>;
   const expectedKeys = [
@@ -219,6 +63,8 @@ function parsePythonForecast(
     'forecast_periods',
     'predictions',
     'model_version',
+    'history_source',
+    'history_provenance',
     'training_source',
     'synthetic_provenance',
   ].sort();
@@ -229,6 +75,9 @@ function parsePythonForecast(
     || response.forecast_periods !== input.forecastPeriods
     || typeof response.model_version !== 'string'
     || !response.model_version.includes('synthetic')
+    || response.history_source !== syntheticHistorySource
+    || typeof response.history_provenance !== 'string'
+    || response.history_provenance.trim().length === 0
     || response.training_source !== 'synthetic'
     || typeof response.synthetic_provenance !== 'string'
     || response.synthetic_provenance.trim().length === 0
@@ -259,80 +108,155 @@ function parsePythonForecast(
     forecastPeriods: response.forecast_periods as number,
     predictions,
     modelVersion: response.model_version,
+    historySource: response.history_source,
+    historyProvenance: response.history_provenance,
     trainingSource: 'synthetic',
     syntheticProvenance: response.synthetic_provenance,
   };
 }
 
 export async function requestDemandForecast(input: DemandForecastInput): Promise<DemandForecastResult> {
-  if (input.historicalRequestCounts.length !== requiredHistoryHours) {
-    throw new HttpError(400, `Provide exactly ${requiredHistoryHours} historical hourly counts.`);
-  }
-  if (
-    input.historicalRequestCounts.some((count) =>
-      !Number.isSafeInteger(count) || count < 0,
-    )
-  ) {
-    throw new HttpError(400, 'Historical request counts must be non-negative integers.');
-  }
   if (!Number.isInteger(input.forecastPeriods) || input.forecastPeriods < 1 || input.forecastPeriods > maximumForecastPeriods) {
     throw new HttpError(400, `forecastPeriods must be between 1 and ${maximumForecastPeriods}.`);
   }
 
-  const selectedHistory = await getDemandHistory(input.mode);
-  if (!selectedHistory.available || !selectedHistory.historicalRequestCounts) {
-    throw new HttpError(409, selectedHistory.message);
-  }
-  if (
-    selectedHistory.forecastStartTimestamp !== input.forecastStartTimestamp
-    || selectedHistory.historicalRequestCounts.some((count, index) => count !== input.historicalRequestCounts[index])
-  ) {
-    throw new HttpError(409, 'Selected history changed. Refresh the history before requesting a forecast.');
-  }
+  const baseUrl = getDemandForecastingServiceUrl();
+  const apiKey = getDemandForecastingServiceApiKey();
+  const requestStartedAt = Date.now();
 
-  let response: Response;
-  try {
-    const baseUrl = getDemandForecastingServiceUrl();
-    response = await fetch(`${baseUrl}/predict`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({
-        forecast_start_timestamp: input.forecastStartTimestamp,
-        forecast_periods: input.forecastPeriods,
-        historical_request_counts: input.historicalRequestCounts,
-      }),
-      signal: AbortSignal.timeout(forecastTimeoutMs),
-    });
-  } catch (error) {
-    if (error instanceof HttpError) throw error;
-    throw new HttpError(503, 'Demand forecasting service is unavailable or timed out.');
-  }
-
-  let responseBody: unknown;
-  try {
-    responseBody = await response.json();
-  } catch {
-    throw new HttpError(502, 'Demand forecasting service returned an invalid response.');
-  }
-
-  if (!response.ok) {
-    if (response.status === 503) {
-      throw new HttpError(503, 'Demand forecasting model is currently unavailable.');
+  for (let attempt = 1; attempt <= maximumForecastAttempts; attempt += 1) {
+    const remainingMs = forecastTimeoutMs - (Date.now() - requestStartedAt);
+    if (remainingMs <= 0) {
+      console.warn('[demand-forecasting] Request deadline reached', {
+        attempt,
+        elapsed_ms: Date.now() - requestStartedAt,
+        reason: 'overall_timeout',
+      });
+      throw new HttpError(503, 'Demand forecasting service is unavailable or timed out.');
     }
-    if (response.status === 422) {
-      throw new HttpError(502, 'Demand forecasting service rejected the validated request.');
+
+    const attemptStartedAt = Date.now();
+    const controller = new AbortController();
+    let timedOut = false;
+    const attemptTimer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, Math.min(forecastAttemptTimeoutMs, remainingMs));
+
+    try {
+      let response: Response;
+      try {
+        response = await fetch(`${baseUrl}/predict`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            accept: 'application/json',
+            authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            forecast_start_timestamp: input.forecastStartTimestamp,
+            forecast_periods: input.forecastPeriods,
+          }),
+          signal: controller.signal,
+        });
+      } catch (error) {
+        const reason = timedOut || (error instanceof Error && ['AbortError', 'TimeoutError'].includes(error.name))
+          ? 'timeout'
+          : 'connection_error';
+        console.warn('[demand-forecasting] Upstream request failed', {
+          attempt,
+          elapsed_ms: Date.now() - attemptStartedAt,
+          reason,
+        });
+        if (!timedOut && !isTransientError(error)) {
+          throw new HttpError(503, 'Demand forecasting service is unavailable or timed out.');
+        }
+        if (attempt === maximumForecastAttempts) {
+          throw new HttpError(503, 'Demand forecasting service is unavailable or timed out.');
+        }
+        await waitBeforeRetry(requestStartedAt);
+        continue;
+      }
+
+      const elapsedMs = Date.now() - attemptStartedAt;
+      if ([502, 503, 504].includes(response.status)) {
+        console.warn('[demand-forecasting] Upstream returned a transient status', {
+          attempt,
+          upstream_status: response.status,
+          elapsed_ms: elapsedMs,
+        });
+        if (attempt === maximumForecastAttempts) {
+          throw new HttpError(503, 'Demand forecasting service is currently unavailable.');
+        }
+        await waitBeforeRetry(requestStartedAt);
+        continue;
+      }
+
+      let responseBody: unknown;
+      try {
+        responseBody = await response.json();
+      } catch (error) {
+        const transient = timedOut || isTransientError(error);
+        console.warn('[demand-forecasting] Upstream response could not be read', {
+          attempt,
+          upstream_status: response.status,
+          elapsed_ms: Date.now() - attemptStartedAt,
+          reason: transient ? 'timeout_or_connection_error' : 'invalid_response',
+        });
+        if (transient && attempt < maximumForecastAttempts) {
+          await waitBeforeRetry(requestStartedAt);
+          continue;
+        }
+        if (transient) {
+          throw new HttpError(503, 'Demand forecasting service is unavailable or timed out.');
+        }
+        throw new HttpError(502, 'Demand forecasting service returned an invalid response.');
+      }
+
+      if (!response.ok) {
+        console.warn('[demand-forecasting] Upstream rejected request', {
+          attempt,
+          upstream_status: response.status,
+          elapsed_ms: Date.now() - attemptStartedAt,
+          reason: response.status === 401 || response.status === 403
+            ? 'authentication_error'
+            : response.status === 422
+              ? 'validation_error'
+              : 'upstream_error',
+        });
+        if (response.status === 422) {
+          throw new HttpError(502, 'Demand forecasting service rejected the validated request.');
+        }
+        if (response.status === 401 || response.status === 403 || response.status >= 500) {
+          throw new HttpError(503, 'Demand forecasting service is currently unavailable.');
+        }
+        throw new HttpError(502, 'Demand forecasting service could not process the request.');
+      }
+
+      const result = parsePythonForecast(responseBody, input);
+      if (!result) {
+        console.warn('[demand-forecasting] Upstream returned an invalid successful response', {
+          attempt,
+          upstream_status: response.status,
+          elapsed_ms: Date.now() - attemptStartedAt,
+          reason: 'invalid_success_response',
+        });
+        throw new HttpError(502, 'Demand forecasting service returned an invalid forecast or model metadata.');
+      }
+
+      console.info('[demand-forecasting] Upstream forecast succeeded', {
+        attempt,
+        upstream_status: response.status,
+        elapsed_ms: Date.now() - attemptStartedAt,
+      });
+      return {
+        ...result,
+        mode: 'synthetic_demo',
+      };
+    } finally {
+      clearTimeout(attemptTimer);
     }
-    throw new HttpError(502, 'Demand forecasting service could not process the request.');
   }
 
-  const result = parsePythonForecast(responseBody, input);
-  if (!result) {
-    throw new HttpError(502, 'Demand forecasting service returned an invalid forecast or model metadata.');
-  }
-  return {
-    ...result,
-    mode: input.mode,
-    historySource: selectedHistory.source,
-    historyProvenance: selectedHistory.provenance,
-  };
+  throw new HttpError(503, 'Demand forecasting service is unavailable or timed out.');
 }

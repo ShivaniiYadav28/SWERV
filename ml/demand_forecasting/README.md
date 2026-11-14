@@ -63,29 +63,38 @@ forecasting accuracy.
 ## FastAPI forecast service
 
 The API is separate from the delivery-time and agent-assignment services. It
-loads the saved artifact from this workspace and does not connect to MongoDB.
-Start it on port 8004 from `ml/demand_forecasting`:
+loads the verified saved artifact from this workspace and does not connect to
+MongoDB. Start it on port 8004 from `ml/demand_forecasting`:
 
 ```powershell
 python -m uvicorn src.api:app --host 127.0.0.1 --port 8004
 ```
 
 `GET http://127.0.0.1:8004/health` reports model availability, model version,
-and that its training source is synthetic.
+and that its training source is synthetic. Health checks remain public.
 
-`POST http://127.0.0.1:8004/predict` requires a UTC hour-aligned start, 1 to
-168 forecast periods, and exactly 168 non-negative observed counts for the
-hours immediately before that start. Requiring recent history makes the
-forecast inputs explicit; the service does not read a database or silently use
-the older synthetic CSV as current history.
+The ML service owns the bundled synthetic CSV and caches the last 168
+consecutive counts after validating the full file. The Admin-only Node backend
+does not need the CSV; it sends only the forecast start and horizon. The
+browser cannot select a real-history mode or send counts. The ML service never
+reads operational records, and neither history nor forecasts are written to
+business data.
 
-Example request, using a Python list to show the required 168 hourly values:
+`POST http://127.0.0.1:8004/predict` requires the backend's
+`Authorization: Bearer <secret>` credential, a UTC hour-aligned start that
+follows the dataset's final timestamp, and 1 to 168 forecast periods. The ML
+service loads the required history from its own bundled synthetic CSV.
+Configure `DEMAND_FORECASTING_API_KEY` with the same randomly generated secret
+(at least 32 characters) in both the backend and ML service environments. Also
+configure `DEMAND_FORECASTING_SERVICE_URL` in the backend. Do not expose the
+key to frontend code or responses.
+
+Example request:
 
 ```python
 {
-    "forecast_start_timestamp": "2026-01-01T00:00:00Z",
+    "forecast_start_timestamp": "2026-11-15T00:00:00Z",
     "forecast_periods": 3,
-    "historical_request_counts": [2] * 168,
 }
 ```
 
@@ -93,14 +102,16 @@ Example response:
 
 ```json
 {
-  "forecast_start_timestamp": "2026-01-01T00:00:00Z",
+  "forecast_start_timestamp": "2026-11-15T00:00:00Z",
   "forecast_periods": 3,
   "predictions": [
-    {"timestamp": "2026-11-08T00:00:00Z", "request_count": 0},
-    {"timestamp": "2026-11-08T01:00:00Z", "request_count": 0},
-    {"timestamp": "2026-11-08T02:00:00Z", "request_count": 0}
+    {"timestamp": "2026-11-15T00:00:00Z", "request_count": 0},
+    {"timestamp": "2026-11-15T01:00:00Z", "request_count": 0},
+    {"timestamp": "2026-11-15T02:00:00Z", "request_count": 0}
   ],
   "model_version": "gradient_boosting-synthetic-a62c1700d5fb",
+  "history_source": "synthetic_hourly_demand.csv",
+  "history_provenance": "Forecast history comes only from the bundled generated synthetic hourly dataset.",
   "training_source": "synthetic",
   "synthetic_provenance": "Trained on generated synthetic hourly demand data; real-world SWERV accuracy is not validated."
 }
@@ -108,15 +119,40 @@ Example response:
 
 For periods after the first forecast hour, the service uses earlier predicted
 counts for lag features. It never has or reads future actual counts. Invalid
-timestamps, insufficient history, invalid horizons, and unavailable models
-return clear HTTP 422 or 503 errors.
+timestamps, request-supplied history, invalid horizons, and unavailable model
+or dataset return clear HTTP 422 or 503 errors. The health endpoint remains
+public and reports model and synthetic-history availability.
+
+## Recursive multi-horizon evaluation
+
+The separately saved model artifact was evaluated without retraining using
+daily rolling origins in the chronological final test period
+(2025-09-14 09:00 through 2025-12-31 23:00 UTC). At each origin, the model uses
+the preceding 168 observed synthetic counts, then feeds each prediction into
+subsequent hours. The seasonal-naive baseline repeats the previous week's
+matching UTC-hour counts. Reported metrics aggregate all available origins;
+zero-demand targets are retained. Ordinary MAPE is omitted because zeros make
+it misleading.
+
+| Recursive horizon | Origins | Scored predictions | Gradient Boosting MAE / RMSE / R² | Seasonal naive MAE / RMSE / R² |
+| --- | ---: | ---: | --- | --- |
+| 24 hours | 108 | 2,592 | 1.0382 / 1.5455 / 0.3329 | 1.4769 / 2.1069 / -0.2399 |
+| 72 hours | 106 | 7,632 | 1.0389 / 1.5455 / 0.3324 | 1.4724 / 2.0988 / -0.2312 |
+| 168 hours | 102 | 17,136 | 1.0462 / 1.5555 / 0.3240 | 1.4712 / 2.0966 / -0.2282 |
+
+These are synthetic-only results, not estimates of real SWERV performance. The
+existing one-step final-test metrics (MAE 1.0727, RMSE 1.4961, R² 0.3737)
+use observed historical lags and are not directly comparable to recursive
+multi-hour metrics. The detailed recursive report is
+`data/processed/recursive_forecast_evaluation.json`; regenerate it with
+`python -m src.recursive_evaluation`. That command verifies and loads the
+existing artifact and does not train or overwrite it.
 
 ## Real-data status and future modeling
 
-The current MongoDB assessment found only 18 real requests across two UTC
-dates. That history is not enough to estimate dependable hourly patterns. Keep
-this synthetic CSV separate from real dispatch records and identify its source
-in any report or chart.
+The experimental read-only real-data exporter is separate from the dashboard
+and synthetic model path. Keep any export separate from this synthetic CSV and
+identify its source in any report or chart.
 
 When there is enough real history, demand should be counted by request
 `createdAt`, not by current status or delivery completion time. Candidate

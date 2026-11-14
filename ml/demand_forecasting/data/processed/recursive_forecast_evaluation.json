@@ -1,0 +1,101 @@
+{
+  "evaluation_type": "recursive rolling-origin multi-horizon evaluation",
+  "training_source": "synthetic",
+  "synthetic_only": true,
+  "real_world_accuracy_validated": false,
+  "feature_columns": [
+    "hour_of_day",
+    "day_of_week",
+    "month",
+    "is_weekend",
+    "previous_hour_demand",
+    "previous_day_same_hour_demand",
+    "previous_week_same_hour_demand",
+    "previous_24_hour_average"
+  ],
+  "forecast_origin_policy": "Origins are spaced by 24 hours within the chronological final test period. Each origin uses only the preceding 168 observed synthetic counts; model predictions are fed recursively within that origin. The seasonal-naive value for each lead is the count from the same UTC hour one week earlier, which is known at the origin.",
+  "chronological_split": {
+    "training_start_utc": "2024-01-08T00:00:00+00:00",
+    "training_end_utc": "2025-05-28T18:00:00+00:00",
+    "validation_start_utc": "2025-05-28T19:00:00+00:00",
+    "validation_end_utc": "2025-09-14T08:00:00+00:00",
+    "final_test_start_utc": "2025-09-14T09:00:00+00:00",
+    "final_test_end_utc": "2025-12-31T23:00:00+00:00"
+  },
+  "dataset": {
+    "rows": 17544,
+    "path": "C:\\project-dev\\swerv\\ml\\demand_forecasting\\data\\synthetic_hourly_demand.csv",
+    "sha256": "839a714fc8a3f8d2f858d4844fbd7076dcfdc51f4c5c140f09c8c862193fe110"
+  },
+  "model": {
+    "version": "gradient_boosting-synthetic-a62c1700d5fb",
+    "retrained_for_evaluation": false,
+    "path": "C:\\project-dev\\swerv\\ml\\demand_forecasting\\models\\synthetic\\best_demand_model.joblib",
+    "artifact_sha256": "a62c1700d5fbde2516c8e930417adb9663568cfb98097ecbe359d859ec7716c1"
+  },
+  "recursive_metrics_by_horizon": {
+    "24": {
+      "forecast_horizon_hours": 24,
+      "rolling_origin_count": 108,
+      "origin_step_hours": 24,
+      "scored_predictions": 2592,
+      "zero_demand_targets": 718,
+      "gradient_boosting": {
+        "mae": 1.0381944444444444,
+        "rmse": 1.5454782710927233,
+        "r2": 0.3328529552481748
+      },
+      "seasonal_naive_previous_week": {
+        "mae": 1.4768518518518519,
+        "rmse": 2.10690370208905,
+        "r2": -0.23989563833217575
+      }
+    },
+    "72": {
+      "forecast_horizon_hours": 72,
+      "rolling_origin_count": 106,
+      "origin_step_hours": 24,
+      "scored_predictions": 7632,
+      "zero_demand_targets": 2121,
+      "gradient_boosting": {
+        "mae": 1.0389150943396226,
+        "rmse": 1.5454759160620661,
+        "r2": 0.3323982937110438
+      },
+      "seasonal_naive_previous_week": {
+        "mae": 1.472353249475891,
+        "rmse": 2.098810434767787,
+        "r2": -0.23123055371816448
+      }
+    },
+    "168": {
+      "forecast_horizon_hours": 168,
+      "rolling_origin_count": 102,
+      "origin_step_hours": 24,
+      "scored_predictions": 17136,
+      "zero_demand_targets": 4780,
+      "gradient_boosting": {
+        "mae": 1.046218487394958,
+        "rmse": 1.5554638495043354,
+        "r2": 0.32397121810238805
+      },
+      "seasonal_naive_previous_week": {
+        "mae": 1.4712301587301588,
+        "rmse": 2.0965964370811387,
+        "r2": -0.22821678717891025
+      }
+    }
+  },
+  "existing_one_step_test": {
+    "report_path": "C:\\project-dev\\swerv\\ml\\demand_forecasting\\data\\processed\\final_test_report.json",
+    "evaluation_scope": "existing rolling one-step test metrics using observed historical lags",
+    "final_test_start_utc": "2025-09-14T09:00:00+00:00",
+    "final_test_end_utc": "2025-12-31T23:00:00+00:00",
+    "metrics": {
+      "mae": 1.0726689818557635,
+      "rmse": 1.4961252275453756,
+      "r2": 0.3736690836143106
+    },
+    "not_comparable_as_recursive_multi_hour_accuracy": true
+  }
+}

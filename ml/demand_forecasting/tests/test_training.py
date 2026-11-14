@@ -16,7 +16,13 @@ from sklearn.dummy import DummyRegressor
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.features import FEATURE_COLUMNS, TARGET_COLUMN, build_time_features, split_chronologically
-from src.model_service import load_saved_model, predict_request_counts, sha256_file
+from src.model_service import (
+    METADATA_PATH,
+    MODEL_PATH,
+    load_saved_model,
+    predict_request_counts,
+    sha256_file,
+)
 
 
 def make_hourly_source(row_count: int) -> pd.DataFrame:
@@ -28,6 +34,15 @@ def make_hourly_source(row_count: int) -> pd.DataFrame:
 
 
 class DemandTrainingTests(unittest.TestCase):
+    def test_bundled_artifact_hash_and_synthetic_metadata_are_valid(self) -> None:
+        _, feature_columns, model_version = load_saved_model()
+        metadata = json.loads(METADATA_PATH.read_text(encoding="utf-8"))
+
+        self.assertEqual(model_version, "gradient_boosting-synthetic-a62c1700d5fb")
+        self.assertEqual(feature_columns, FEATURE_COLUMNS)
+        self.assertEqual(metadata["training_source"], "synthetic")
+        self.assertEqual(metadata["artifact_sha256"], sha256_file(MODEL_PATH))
+
     def test_missing_model_artifact_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             folder = Path(temporary_directory)

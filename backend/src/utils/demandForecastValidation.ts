@@ -9,10 +9,6 @@ const hourlyUtcTimestamp = z.iso.datetime({ offset: true }).refine((value) => {
 }, 'forecastStartTimestamp must be a UTC timestamp aligned to the start of an hour.');
 
 export const demandForecastRequestSchema = z.object({
-  mode: z.enum(['real', 'synthetic_demo']),
   forecastStartTimestamp: hourlyUtcTimestamp,
   forecastPeriods: z.number().int().min(1).max(168),
-  historicalRequestCounts: z.array(
-    z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
-  ).length(168),
 }).strict();
