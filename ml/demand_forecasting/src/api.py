@@ -5,8 +5,13 @@ from __future__ import annotations
 import hmac
 import logging
 import os
+import sys
+import traceback
 from functools import lru_cache
 from typing import TypeAlias
+
+import numpy as np
+import sklearn
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from sklearn.base import RegressorMixin
@@ -59,7 +64,19 @@ def get_model_bundle() -> ModelBundle | None:
     try:
         model, feature_columns, model_version = load_saved_model()
     except Exception as error:
-        logger.warning("Demand forecasting model could not be loaded (error_type=%s)", type(error).__name__)
+        missing_module = getattr(error, "name", None) or str(error)
+        tb_lines = traceback.format_exc().splitlines()
+        tb_tail = tb_lines[-5:] if len(tb_lines) >= 5 else tb_lines
+        logger.warning(
+            "Demand forecasting model could not be loaded "
+            "(error_type=%s, missing_module=%s, python=%s, numpy=%s, sklearn=%s, traceback=%s)",
+            type(error).__name__,
+            missing_module,
+            sys.version.split()[0],
+            np.__version__,
+            sklearn.__version__,
+            " | ".join(tb_tail),
+        )
         return None
     if feature_columns != FEATURE_COLUMNS:
         return None
