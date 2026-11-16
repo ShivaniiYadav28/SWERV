@@ -1,0 +1,61 @@
+{
+  "evaluation": "validation_model_selection",
+  "data_source": "synthetic",
+  "training_seed": 121,
+  "split_configuration": {
+    "method": "chronological_dispatch_grouped",
+    "training_fraction": 0.7,
+    "validation_fraction": 0.15,
+    "final_test_fraction": 0.15
+  },
+  "split_counts": {
+    "training": {
+      "candidate_rows": 7000,
+      "scenarios": 700
+    },
+    "validation": {
+      "candidate_rows": 1500,
+      "scenarios": 150
+    },
+    "final_test": {
+      "candidate_rows": 1500,
+      "scenarios": 150
+    }
+  },
+  "model_selection_order": [
+    "ndcg_at_1 descending",
+    "top_candidate_accuracy descending",
+    "ndcg_at_3 descending",
+    "mae_minutes ascending",
+    "rmse_minutes ascending",
+    "model name ascending"
+  ],
+  "metrics": {
+    "linear_regression": {
+      "mae_minutes": 11.437538100102426,
+      "rmse_minutes": 15.25999419826979,
+      "r2": 0.8606146197128516,
+      "top_candidate_accuracy": 0.6933333333333334,
+      "ndcg_at_1": 0.8204444444444444,
+      "ndcg_at_3": 0.8919823569238459
+    },
+    "random_forest": {
+      "mae_minutes": 10.9136382811158,
+      "rmse_minutes": 15.135156641437618,
+      "r2": 0.8628858336830592,
+      "top_candidate_accuracy": 0.6933333333333334,
+      "ndcg_at_1": 0.8248888888888889,
+      "ndcg_at_3": 0.9097533150123767
+    },
+    "gradient_boosting": {
+      "mae_minutes": 8.480804784135568,
+      "rmse_minutes": 11.802963002639663,
+      "r2": 0.9166144920024797,
+      "top_candidate_accuracy": 0.7,
+      "ndcg_at_1": 0.8296666666666666,
+      "ndcg_at_3": 0.9133894600575043
+    }
+  },
+  "selected_model": "gradient_boosting",
+  "real_world_performance_validated": false
+}

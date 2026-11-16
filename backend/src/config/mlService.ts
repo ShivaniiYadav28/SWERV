@@ -69,3 +69,11 @@ export function getSmartAgentMlServiceBaseUrl(): string {
   }
   return `${parsedUrl.origin}${parsedUrl.pathname.replace(/\/+$/, '')}`;
 }
+
+export function getSmartAgentMlServiceApiKey(): string {
+  const apiKey = process.env.SMART_AGENT_ASSIGNMENT_API_KEY?.trim();
+  if (!apiKey) {
+    throw new HttpError(503, 'Smart Agent Assignment service authentication is not configured.');
+  }
+  return apiKey;
+}

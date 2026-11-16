@@ -11,6 +11,8 @@ export const getAgentRecommendationsHandler: RequestHandler = async (req, res) =
     data: {
       dispatchRequestId,
       recommendations: result.recommendations,
+      recommendedAgent: result.recommendations[0] ?? null,
+      rankedAlternatives: result.recommendations.slice(1),
       rankingData: result.rankingData,
       predictionStatus: result.predictionStatus,
       modelVersion: result.modelVersion,

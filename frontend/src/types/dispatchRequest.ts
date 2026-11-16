@@ -119,6 +119,7 @@ export type DemoDeliveryTimePrediction = {
 
 export type AgentRecommendation = {
   rank: number
+  modelRank: number
   agent: {
     id: string
     name: string
@@ -126,6 +127,8 @@ export type AgentRecommendation = {
     vehicleType: string
   }
   predictedDurationMinutes: number
+  suitabilityScore: number
+  scoreExplanation: string[]
   workload: {
     activeDispatchCount: number
     maxOrders: number
@@ -139,6 +142,8 @@ export type AgentRecommendation = {
 export type AgentRecommendationResult = {
   dispatchRequestId: string
   recommendations: AgentRecommendation[]
+  recommendedAgent: AgentRecommendation | null
+  rankedAlternatives: AgentRecommendation[]
   predictionStatus: 'available' | 'no_eligible_candidates'
   modelVersion: string | null
   trainingSource: 'synthetic' | null

@@ -2,26 +2,67 @@
 
 from __future__ import annotations
 
+import hmac
 import math
+import os
+from contextlib import asynccontextmanager
 from typing import Any
 
 import pandas as pd
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from .features import build_features
 from .model_service import AgentRecommendationModel, model_service
 from .schemas import RecommendationRequest, RecommendationResponse
 
 
+API_KEY_ENV = "SMART_AGENT_ASSIGNMENT_API_KEY"
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    model_service.load()
+    yield
+
+
 app = FastAPI(
     title="SWERV Smart Agent Assignment ML Service",
     version="0.1.0",
     description="Ranks already eligible agent candidates using a synthetic-data prototype model.",
+    lifespan=lifespan,
 )
 
 
 def get_model_service() -> AgentRecommendationModel:
     return model_service
+
+
+def require_api_key(
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+) -> None:
+    expected_key = os.getenv(API_KEY_ENV)
+    if not expected_key or not expected_key.strip():
+        raise HTTPException(
+            status_code=503,
+            detail="Prediction API authentication is not configured.",
+        )
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise HTTPException(
+            status_code=401,
+            detail="A valid Bearer token is required.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not hmac.compare_digest(
+        credentials.credentials.encode("utf-8"),
+        expected_key.encode("utf-8"),
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="A valid Bearer token is required.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
 def straight_line_distance_km(
@@ -85,16 +126,14 @@ def health(service: AgentRecommendationModel = Depends(get_model_service)) -> di
 def predict(
     request: RecommendationRequest,
     service: AgentRecommendationModel = Depends(get_model_service),
+    _: None = Depends(require_api_key),
 ) -> RecommendationResponse:
     if not service.available:
         raise HTTPException(
             status_code=503,
             detail="Smart Agent Assignment model is unavailable; no recommendation prediction was made.",
         )
-    try:
-        predicted_durations = service.predict(make_candidate_features(request))
-    except Exception:
-        predicted_durations = None
+    predicted_durations = service.predict(make_candidate_features(request))
     if predicted_durations is None or len(predicted_durations) != len(request.candidates):
         raise HTTPException(status_code=503, detail="Smart Agent Assignment model could not produce valid predictions.")
 

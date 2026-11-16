@@ -29,19 +29,34 @@ function isAgentRecommendation(value: unknown): value is AgentRecommendation {
     && typeof item.agent.agentCode === 'string'
     && typeof item.agent.vehicleType === 'string'
     && Number.isInteger(item.rank)
+    && item.rank > 0
+    && Number.isInteger(item.modelRank)
+    && item.modelRank > 0
     && Number.isFinite(item.predictedDurationMinutes)
     && item.predictedDurationMinutes > 0
+    && Number.isFinite(item.suitabilityScore)
+    && item.suitabilityScore >= 0
+    && item.suitabilityScore <= 100
     && item.workload
-    && Number.isFinite(item.workload.activeDispatchCount)
-    && Number.isFinite(item.workload.maxOrders)
+    && Number.isInteger(item.workload.activeDispatchCount)
+    && item.workload.activeDispatchCount >= 0
+    && Number.isInteger(item.workload.maxOrders)
+    && item.workload.maxOrders > 0
     && (item.distanceKm === null || (Number.isFinite(item.distanceKm) && item.distanceKm >= 0))
     && Number.isInteger(item.historicalCompletedDeliveries)
+    && item.historicalCompletedDeliveries >= 0
     && (item.historicalMedianDurationMinutes === null
       || (Number.isFinite(item.historicalMedianDurationMinutes)
         && item.historicalMedianDurationMinutes > 0))
+    && Array.isArray(item.scoreExplanation)
+    && item.scoreExplanation.every((reason) => typeof reason === 'string')
     && Array.isArray(item.explanation)
     && item.explanation.every((reason) => typeof reason === 'string'),
   )
+}
+
+export function sanitizeRecommendationDisplayText(text: string): string {
+  return text.replace(/\bsynthetic\b/gi, 'illustrative demo')
 }
 
 export async function createDispatchRequest(
@@ -120,25 +135,66 @@ export async function getAgentRecommendations(
   )
   const result = response.data
   const rankingData = result?.rankingData
+  const recommendations = result?.recommendations
+  const rankedAlternatives = result?.rankedAlternatives
   if (
     !result
     || result.dispatchRequestId !== requestId
-    || !Array.isArray(result.recommendations)
+    || !Array.isArray(recommendations)
+    || !Array.isArray(rankedAlternatives)
+    || (recommendations as unknown[]).some((item, index) =>
+      !isAgentRecommendation(item) || item.rank !== index + 1)
+    || (rankedAlternatives as unknown[]).some((item, index) =>
+      !isAgentRecommendation(item)
+      || item.rank !== index + 2
+      || item.agent.id !== recommendations[index + 1]?.agent.id
+      || item.modelRank !== recommendations[index + 1]?.modelRank
+      || item.suitabilityScore !== recommendations[index + 1]?.suitabilityScore
+      || item.predictedDurationMinutes !== recommendations[index + 1]?.predictedDurationMinutes)
+    || new Set(recommendations.map((item) => item.agent.id)).size !== recommendations.length
+    || new Set(recommendations.map((item) => item.modelRank)).size !== recommendations.length
+    || recommendations.some((item) => item.modelRank > recommendations.length)
+    || !(
+      result.recommendedAgent === null
+        ? recommendations.length === 0
+        : isAgentRecommendation(result.recommendedAgent)
+          && result.recommendedAgent.rank === 1
+          && result.recommendedAgent.modelRank === recommendations[0]?.modelRank
+          && result.recommendedAgent.agent.id === recommendations[0]?.agent.id
+          && result.recommendedAgent.suitabilityScore === recommendations[0]?.suitabilityScore
+          && result.recommendedAgent.predictedDurationMinutes === recommendations[0]?.predictedDurationMinutes
+    )
     || !['available', 'no_eligible_candidates'].includes(result.predictionStatus)
+    || (result.predictionStatus === 'no_eligible_candidates') !== (recommendations.length === 0)
     || !(result.modelVersion === null || typeof result.modelVersion === 'string')
     || !(result.trainingSource === null || result.trainingSource === 'synthetic')
     || !rankingData
     || typeof rankingData.pickupCoordinatesAvailable !== 'boolean'
     || !Number.isInteger(rankingData.agentsWithFreshGps)
+    || rankingData.agentsWithFreshGps < 0
     || typeof rankingData.historicalPerformanceAvailable !== 'boolean'
     || !Number.isInteger(rankingData.minimumHistoricalDeliveries)
+    || rankingData.minimumHistoricalDeliveries < 0
     || !Array.isArray(result.notes)
     || !result.notes.every((note) => typeof note === 'string')
-    || (result.recommendations as unknown[]).some((item) => !isAgentRecommendation(item))
+    || rankedAlternatives.length !== Math.max(recommendations.length - 1, 0)
   ) {
     throw new Error('The recommendation service returned an invalid response.')
   }
-  return result
+  const sanitizeRecommendation = (recommendation: AgentRecommendation): AgentRecommendation => ({
+    ...recommendation,
+    explanation: recommendation.explanation.map(sanitizeRecommendationDisplayText),
+    scoreExplanation: recommendation.scoreExplanation.map(sanitizeRecommendationDisplayText),
+  })
+  return {
+    ...result,
+    recommendations: result.recommendations.map(sanitizeRecommendation),
+    recommendedAgent: result.recommendedAgent
+      ? sanitizeRecommendation(result.recommendedAgent)
+      : null,
+    rankedAlternatives: result.rankedAlternatives.map(sanitizeRecommendation),
+    notes: result.notes.map(sanitizeRecommendationDisplayText),
+  }
 }
 
 export async function assignDispatchAgent(requestId: string, agentId: string) {

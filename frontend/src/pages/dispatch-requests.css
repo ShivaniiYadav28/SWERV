@@ -783,6 +783,9 @@
   display: grid;
   gap: 3px;
 }
+.dispatch-recommendation-card-heading > div:first-child {
+  flex: 1 1 auto;
+}
 .dispatch-recommendation-card-heading strong {
   color: #e9e2e3;
   font-size: 10px;
@@ -798,13 +801,53 @@
   letter-spacing: .35px;
   text-transform: uppercase;
 }
-.dispatch-recommendation-score {
-  flex: 0 0 auto;
+.dispatch-recommendation-metrics {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.dispatch-recommendation-suitability,
+.dispatch-recommendation-duration {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: baseline;
+  gap: 0 2px;
+  text-align: right;
+}
+.dispatch-recommendation-suitability {
   border: 1px solid #49363a;
-  border-radius: 20px;
+  border-radius: 7px;
   padding: 4px 7px;
+  background: #282124;
   color: #e8b3a9;
+}
+.dispatch-recommendation-suitability strong {
+  color: #f0c1b6;
+  font-size: 12px;
+}
+.dispatch-recommendation-suitability small {
+  color: #be8d86;
   font-size: 8px;
+}
+.dispatch-recommendation-suitability > span,
+.dispatch-recommendation-duration > span {
+  grid-column: 1 / -1;
+  color: #9a8f94;
+  font-size: 7px;
+}
+.dispatch-recommendation-duration strong {
+  color: #d3c7cc;
+  font-size: 9px;
+}
+.dispatch-ranked-alternatives {
+  display: grid;
+  gap: 8px;
+  margin-top: 3px;
+}
+.dispatch-ranked-alternatives h4 {
+  margin: 3px 1px 0;
+  color: #bcb3ba;
+  font-size: 9px;
   font-weight: 600;
 }
 .dispatch-recommendation-facts {
@@ -823,6 +866,19 @@
   color: #8f8990;
   font-size: 8px;
   line-height: 1.45;
+}
+.dispatch-recommendation-explanation {
+  color: #8f8990;
+  font-size: 8px;
+  line-height: 1.45;
+}
+.dispatch-recommendation-explanation summary {
+  color: #c2b9bf;
+  cursor: pointer;
+  font-weight: 600;
+}
+.dispatch-recommendation-explanation .dispatch-recommendation-reasons {
+  margin-top: 6px;
 }
 .dispatch-recommendation-select {
   justify-self: start;
@@ -906,6 +962,13 @@
   }
   .dispatch-recommendation-facts {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .dispatch-recommendation-card-heading {
+    flex-direction: column;
+  }
+  .dispatch-recommendation-metrics {
+    width: 100%;
+    justify-content: space-between;
   }
 }
 .dispatch-overview-badges {

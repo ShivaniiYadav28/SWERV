@@ -1,0 +1,37 @@
+{
+  "evaluation": "selected_model_final_test",
+  "data_source": "synthetic",
+  "training_seed": 121,
+  "split_configuration": {
+    "method": "chronological_dispatch_grouped",
+    "training_fraction": 0.7,
+    "validation_fraction": 0.15,
+    "final_test_fraction": 0.15
+  },
+  "split_counts": {
+    "training": {
+      "candidate_rows": 7000,
+      "scenarios": 700
+    },
+    "validation": {
+      "candidate_rows": 1500,
+      "scenarios": 150
+    },
+    "final_test": {
+      "candidate_rows": 1500,
+      "scenarios": 150
+    }
+  },
+  "selected_model": "gradient_boosting",
+  "model_version": "gradient_boosting-synthetic-c092cee9f5a4",
+  "metrics": {
+    "mae_minutes": 8.529967180114777,
+    "rmse_minutes": 11.91419391008828,
+    "r2": 0.9091016863203819,
+    "top_candidate_accuracy": 0.7133333333333334,
+    "ndcg_at_1": 0.8407777777777778,
+    "ndcg_at_3": 0.9164033662846445
+  },
+  "model_selection_used_final_test": false,
+  "real_world_performance_validated": false
+}

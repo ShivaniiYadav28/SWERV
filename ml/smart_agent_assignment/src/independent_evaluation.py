@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import json
 import math
+import os
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,7 +17,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-from .api import app, get_model_service
+from .api import API_KEY_ENV, app, get_model_service
 from .features import (
     FEATURE_COLUMNS,
     GROUP_COLUMN,
@@ -24,6 +25,7 @@ from .features import (
     build_features,
 )
 from .model_service import AgentRecommendationModel
+from .ranking_metrics import ndcg_for_scenario
 from .synthetic_dataset import (
     CANDIDATES_PER_SCENARIO,
     generate_dataset,
@@ -32,8 +34,8 @@ from .synthetic_dataset import (
 
 
 WORKSPACE = Path(__file__).resolve().parents[1]
-MODEL_PATH = WORKSPACE / "models" / "synthetic" / "gradient_boosting.joblib"
-MODEL_METADATA_PATH = MODEL_PATH.with_suffix(".metadata.json")
+MODEL_DIR = WORKSPACE / "models" / "synthetic"
+TRAINING_REPORT_PATH = WORKSPACE / "data" / "processed" / "synthetic_training_report.json"
 OUTPUT_DIR = WORKSPACE / "data" / "processed" / "independent_testing"
 DATASET_OUTPUT_PATH = OUTPUT_DIR / "independent_agent_candidate_dataset.csv"
 METRICS_REPORT_PATH = OUTPUT_DIR / "evaluation_metrics.json"
@@ -58,6 +60,13 @@ MODEL_CANDIDATE_FEATURE_COLUMNS = [
 
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def api_auth_headers() -> dict[str, str]:
+    api_key = os.getenv(API_KEY_ENV)
+    if not api_key:
+        raise RuntimeError(f"Set {API_KEY_ENV} before running API edge checks.")
+    return {"Authorization": f"Bearer {api_key}"}
 
 
 def haversine_km(first: tuple[float, float], second: tuple[float, float]) -> float:
@@ -146,22 +155,6 @@ def group_error_report(
             "rmse_minutes": float(np.sqrt(np.square(error).mean())),
         }
     return result
-
-
-def ndcg_for_scenario(actual: np.ndarray, predicted_order: np.ndarray, cutoff: int) -> float:
-    """NDCG with reciprocal actual-rank gain; lower true duration is better."""
-    actual_order = pd.Series(actual).rank(method="average", ascending=True).to_numpy()
-    relevance = 1.0 / actual_order
-    ordered_relevance = relevance[predicted_order]
-    ideal_relevance = np.sort(relevance)[::-1]
-
-    def discounted_gain(values: np.ndarray) -> float:
-        selected = values[:cutoff]
-        positions = np.arange(2, len(selected) + 2)
-        return float(np.sum(selected / np.log2(positions)))
-
-    ideal = discounted_gain(ideal_relevance)
-    return discounted_gain(ordered_relevance) / ideal if ideal > 0 else 0.0
 
 
 def ranking_report(dataset: pd.DataFrame, predictions: np.ndarray) -> dict[str, Any]:
@@ -279,11 +272,12 @@ def make_api_request(
 async def post_to_local_api(body: dict[str, Any]) -> httpx.Response:
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        return await client.post("/predict", json=body)
+        return await client.post("/predict", json=body, headers=api_auth_headers())
 
 
 def run_api_edge_tests(dataset: pd.DataFrame, expected_model_version: str) -> dict[str, Any]:
     checks: dict[str, Any] = {}
+    headers = api_auth_headers()
     with httpx.Client(base_url=API_BASE_URL, timeout=15) as client:
         health_response = client.get("/health")
         health = health_response.json()
@@ -302,7 +296,7 @@ def run_api_edge_tests(dataset: pd.DataFrame, expected_model_version: str) -> di
         ).head(CANDIDATES_PER_SCENARIO).groupby(GROUP_COLUMN, sort=True).head(CANDIDATES_PER_SCENARIO)
         scenario_id = scenario[GROUP_COLUMN].iloc[0]
         scenario = dataset[dataset[GROUP_COLUMN] == scenario_id]
-        valid_response = client.post("/predict", json=make_api_request(scenario))
+        valid_response = client.post("/predict", json=make_api_request(scenario), headers=headers)
         valid_body = valid_response.json()
         valid_predictions = valid_body.get("predictions", [])
         checks["multiple_candidate_prediction"] = {
@@ -330,7 +324,7 @@ def run_api_edge_tests(dataset: pd.DataFrame, expected_model_version: str) -> di
         missing_gps["historical_median_minutes"] = np.nan
         missing_response = client.post("/predict", json=make_api_request(
             missing_gps, missing_dispatch_coordinates=True
-        ))
+        ), headers=headers)
         missing_body = missing_response.json()
         checks["missing_optional_information"] = {
             "passed": missing_response.status_code == 200
@@ -341,7 +335,11 @@ def run_api_edge_tests(dataset: pd.DataFrame, expected_model_version: str) -> di
             "dispatch_coordinates_missing": True,
         }
 
-        tie_response = client.post("/predict", json=make_api_request(scenario, tie_candidates=True))
+        tie_response = client.post(
+            "/predict",
+            json=make_api_request(scenario, tie_candidates=True),
+            headers=headers,
+        )
         tie_body = tie_response.json()
         tie_items = tie_body.get("predictions", [])
         checks["similar_prediction_tie"] = {
@@ -355,7 +353,7 @@ def run_api_edge_tests(dataset: pd.DataFrame, expected_model_version: str) -> di
 
         invalid_body = make_api_request(scenario.head(1))
         invalid_body["dispatch"]["weight_kg"] = -1
-        weight_response = client.post("/predict", json=invalid_body)
+        weight_response = client.post("/predict", json=invalid_body, headers=headers)
         checks["invalid_weight_rejected"] = {
             "passed": weight_response.status_code == 422,
             "http_status": weight_response.status_code,
@@ -363,7 +361,7 @@ def run_api_edge_tests(dataset: pd.DataFrame, expected_model_version: str) -> di
 
         ineligible_body = make_api_request(scenario.head(1))
         ineligible_body["candidates"][0]["active_workload"] = ineligible_body["candidates"][0]["max_capacity"]
-        ineligible_response = client.post("/predict", json=ineligible_body)
+        ineligible_response = client.post("/predict", json=ineligible_body, headers=headers)
         checks["ineligible_candidate_rejected_before_scoring"] = {
             "passed": ineligible_response.status_code == 422,
             "http_status": ineligible_response.status_code,
@@ -380,7 +378,7 @@ def run_api_edge_tests(dataset: pd.DataFrame, expected_model_version: str) -> di
         }[scenario["package_category"].iloc[0]]
         invalid_capability = "heavy_goods" if required_capability != "heavy_goods" else "food_delivery"
         capability_body["candidates"][0]["capabilities"] = [invalid_capability]
-        capability_response = client.post("/predict", json=capability_body)
+        capability_response = client.post("/predict", json=capability_body, headers=headers)
         checks["incompatible_capability_rejected"] = {
             "passed": capability_response.status_code == 422,
             "http_status": capability_response.status_code,
@@ -388,7 +386,7 @@ def run_api_edge_tests(dataset: pd.DataFrame, expected_model_version: str) -> di
 
         duplicate_body = make_api_request(scenario.head(2))
         duplicate_body["candidates"][1]["agent_id"] = duplicate_body["candidates"][0]["agent_id"]
-        duplicate_response = client.post("/predict", json=duplicate_body)
+        duplicate_response = client.post("/predict", json=duplicate_body, headers=headers)
         checks["duplicate_agent_rejected"] = {
             "passed": duplicate_response.status_code == 422,
             "http_status": duplicate_response.status_code,
@@ -411,17 +409,25 @@ def run_api_edge_tests(dataset: pd.DataFrame, expected_model_version: str) -> di
 
 
 def evaluate_independent_dataset() -> dict[str, Any]:
-    if not MODEL_PATH.is_file() or not MODEL_METADATA_PATH.is_file():
-        raise FileNotFoundError("The existing Feature 2 model artifact or metadata is missing.")
-    model_hash_before = sha256(MODEL_PATH)
-    metadata = json.loads(MODEL_METADATA_PATH.read_text(encoding="utf-8"))
+    if not TRAINING_REPORT_PATH.is_file():
+        raise FileNotFoundError("The Smart Agent Assignment training report is missing.")
+    training_report = json.loads(TRAINING_REPORT_PATH.read_text(encoding="utf-8"))
+    model_name = training_report.get("best_model")
+    if model_name not in {"linear_regression", "random_forest", "gradient_boosting"}:
+        raise ValueError("The training report does not name a supported selected model.")
+    model_path = MODEL_DIR / f"{model_name}.joblib"
+    metadata_path = model_path.with_suffix(".metadata.json")
+    if not model_path.is_file() or not metadata_path.is_file():
+        raise FileNotFoundError("The selected Smart Agent Assignment model artifact or metadata is missing.")
+    model_hash_before = sha256(model_path)
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     if metadata.get("training_source") != "synthetic":
         raise ValueError("The existing model is not labeled as synthetic-trained.")
-    if metadata.get("artifact_sha256") != model_hash_before:
+    if metadata.get("model_name") != model_name or metadata.get("artifact_sha256") != model_hash_before:
         raise ValueError("The model hash does not match its provenance metadata.")
-    service = AgentRecommendationModel(MODEL_PATH)
-    if not service.available or service.model_version != "gradient_boosting-synthetic-c22e749e234e":
-        raise RuntimeError("The expected saved Gradient Boosting model could not be loaded.")
+    service = AgentRecommendationModel(model_path)
+    if not service.available or service.model_version != metadata.get("model_version"):
+        raise RuntimeError("The selected Smart Agent Assignment model could not be loaded.")
 
     dataset = generate_independent_data()
     features = build_features(dataset)
@@ -445,9 +451,9 @@ def evaluate_independent_dataset() -> dict[str, Any]:
     regression = regression_report(dataset, predicted_array)
     ranking = ranking_report(dataset, predicted_array)
     edges = run_api_edge_tests(dataset, str(service.model_version))
-    model_hash_after = sha256(MODEL_PATH)
+    model_hash_after = sha256(model_path)
     integrity = {
-        "model_artifact": str(MODEL_PATH),
+        "model_artifact": str(model_path),
         "expected_model_version": metadata.get("model_version"),
         "loaded_model_version": service.model_version,
         "model_sha256_before": model_hash_before,
@@ -488,8 +494,9 @@ def evaluate_independent_dataset() -> dict[str, Any]:
         "candidates_per_scenario": CANDIDATES_PER_SCENARIO,
         "random_seed": RANDOM_SEED,
         "scenario_prefix": SCENARIO_PREFIX,
+        "selected_model": model_name,
         "training_dataset_read": False,
-        "holdout_dataset_read": False,
+        "final_test_dataset_read": False,
         "model_integrity": integrity,
         "metrics_report": str(METRICS_REPORT_PATH),
         "ranking_report": str(RANKING_REPORT_PATH),

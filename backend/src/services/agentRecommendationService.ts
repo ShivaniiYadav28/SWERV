@@ -4,13 +4,22 @@ import { DispatchRequest } from '../models/DispatchRequest.js';
 import { DispatchRequestActivity } from '../models/DispatchRequestActivity.js';
 import { getRequiredAgentCapabilities } from './dispatchRequestService.js';
 import { HttpError } from '../utils/httpError.js';
-import { getSmartAgentMlServiceBaseUrl } from '../config/mlService.js';
+import {
+  getSmartAgentMlServiceApiKey,
+  getSmartAgentMlServiceBaseUrl,
+} from '../config/mlService.js';
 
 const freshLocationAgeMs = 15 * 60 * 1_000;
 const minimumHistoricalDeliveries = 10;
 const maximumHistoricalRequests = 500;
 const earthRadiusKm = 6371.0088;
 const predictionTimeoutMs = 5_000;
+const suitabilityWeights = {
+  predictedDuration: 0.5,
+  workload: 0.2,
+  distance: 0.15,
+  history: 0.15,
+} as const;
 
 type CoordinatePair = { latitude: number; longitude: number };
 type RecommendationHistory = {
@@ -186,6 +195,19 @@ type PythonRecommendationResponse = {
   predictions: PythonCandidatePrediction[];
 };
 
+type SuitabilityInput = {
+  predictedDurationMinutes: number;
+  activeDispatchCount: number;
+  maxOrders: number;
+  distanceKm: number | null;
+  history: RecommendationHistory;
+};
+
+type SuitabilityAssessment = {
+  score: number;
+  explanation: string[];
+};
+
 function parsePredictionResponse(value: unknown): PythonRecommendationResponse | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const response = value as Record<string, unknown>;
@@ -210,6 +232,86 @@ function parsePredictionResponse(value: unknown): PythonRecommendationResponse |
       || prediction.predicted_duration_minutes <= 0;
   })) return null;
   return response as PythonRecommendationResponse;
+}
+
+function relativeLowerIsBetterScore(value: number, values: number[]): number {
+  if (values.length === 1) return 100;
+  let minimum = Number.POSITIVE_INFINITY;
+  let maximum = Number.NEGATIVE_INFINITY;
+  for (const candidateValue of values) {
+    minimum = Math.min(minimum, candidateValue);
+    maximum = Math.max(maximum, candidateValue);
+  }
+  if (minimum === maximum) return 50;
+  return ((maximum - value) / (maximum - minimum)) * 100;
+}
+
+function calculateSuitabilityAssessments(inputs: SuitabilityInput[]): SuitabilityAssessment[] {
+  const durationValues = inputs.map((input) => input.predictedDurationMinutes);
+  const distanceValues = inputs.flatMap((input) => input.distanceKm === null ? [] : [input.distanceKm]);
+  const historyValues = inputs.flatMap((input) => {
+    const medianDuration = input.history.medianDurationMinutes;
+    return medianDuration === null ? [] : [medianDuration];
+  });
+  const includeDistance = distanceValues.length > 0;
+  const includeHistory = historyValues.length > 0;
+  const totalWeight = suitabilityWeights.predictedDuration
+    + suitabilityWeights.workload
+    + (includeDistance ? suitabilityWeights.distance : 0)
+    + (includeHistory ? suitabilityWeights.history : 0);
+
+  return inputs.map((input) => {
+    const durationScore = relativeLowerIsBetterScore(
+      input.predictedDurationMinutes,
+      durationValues,
+    );
+    const workloadRatio = Math.min(
+      1,
+      Math.max(0, input.activeDispatchCount / input.maxOrders),
+    );
+    const workloadScore = (1 - workloadRatio) * 100;
+    const distanceScore = input.distanceKm === null
+      ? 50
+      : relativeLowerIsBetterScore(input.distanceKm, distanceValues);
+    const historyScore = input.history.medianDurationMinutes === null
+      ? 50
+      : relativeLowerIsBetterScore(input.history.medianDurationMinutes, historyValues);
+
+    let weightedScore = durationScore * suitabilityWeights.predictedDuration
+      + workloadScore * suitabilityWeights.workload;
+    if (includeDistance) weightedScore += distanceScore * suitabilityWeights.distance;
+    if (includeHistory) weightedScore += historyScore * suitabilityWeights.history;
+    const score = Math.round((weightedScore / totalWeight) * 100) / 100;
+    const explanation = [
+      'Backend-calculated comparative score for eligible candidates in this dispatch; it is not a probability of success.',
+      'Only active, available agents with spare capacity and required capabilities are scored.',
+      `Predicted duration: ${input.predictedDurationMinutes.toFixed(1)} minutes (${durationScore.toFixed(0)}/100 component).`,
+      `Workload: ${input.activeDispatchCount} of ${input.maxOrders} active deliveries (${workloadScore.toFixed(0)}/100 component).`,
+    ];
+
+    if (includeDistance) {
+      explanation.push(input.distanceKm === null
+        ? 'Distance component is neutral (50/100) because fresh GPS is unavailable.'
+        : `Fresh-GPS distance: ${input.distanceKm.toFixed(1)} km from pickup (${distanceScore.toFixed(0)}/100 relative component).`);
+    } else {
+      explanation.push('Distance was not included because fresh GPS is unavailable for all eligible candidates.');
+    }
+
+    if (includeHistory) {
+      explanation.push(input.history.medianDurationMinutes === null
+        ? `History component is neutral (50/100); no reliable median is available from at least ${minimumHistoricalDeliveries} valid completed deliveries.`
+        : `Historical median: ${input.history.medianDurationMinutes.toFixed(1)} minutes across ${input.history.completedDeliveries} valid deliveries (${historyScore.toFixed(0)}/100 relative component).`);
+    } else {
+      explanation.push(
+        `Historical performance was not included because no candidate has ${minimumHistoricalDeliveries} valid completed deliveries.`,
+      );
+    }
+
+    explanation.push(
+      'Factors are weighted 50% predicted duration, 20% workload, 15% distance, and 15% history; unavailable factors are omitted when unavailable for all candidates.',
+    );
+    return { score, explanation };
+  });
 }
 
 async function requestCandidatePredictions(
@@ -269,17 +371,35 @@ async function requestCandidatePredictions(
   };
 
   let response: Response;
+  const baseUrl = getSmartAgentMlServiceBaseUrl();
+  const apiKey = getSmartAgentMlServiceApiKey();
   try {
-    const baseUrl = getSmartAgentMlServiceBaseUrl();
     response = await fetch(`${baseUrl}/predict`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json',
+        authorization: `Bearer ${apiKey}`,
+      },
       body: JSON.stringify(requestBody),
       signal: AbortSignal.timeout(predictionTimeoutMs),
     });
   } catch {
     throw new HttpError(503, 'Smart Agent Assignment ML service is unavailable. Retry after it is running.');
   }
+  if (response.status === 401 || response.status === 403) {
+    throw new HttpError(503, 'Smart Agent Assignment ML service authentication failed.');
+  }
+  if (response.status === 503) {
+    throw new HttpError(503, 'Smart Agent Assignment model is unavailable; no ML ranking was produced.');
+  }
+  if (response.status >= 500) {
+    throw new HttpError(503, 'Smart Agent Assignment ML service is unavailable.');
+  }
+  if (!response.ok) {
+    throw new HttpError(502, 'Smart Agent Assignment ML service could not process the candidates.');
+  }
+
   let body: unknown;
   try {
     body = await response.json();
@@ -287,12 +407,6 @@ async function requestCandidatePredictions(
     throw new HttpError(502, 'Smart Agent Assignment ML service returned an invalid response.');
   }
   const result = parsePredictionResponse(body);
-  if (!response.ok) {
-    if (response.status === 503) {
-      throw new HttpError(503, 'Smart Agent Assignment model is unavailable; no ML ranking was produced.');
-    }
-    throw new HttpError(502, 'Smart Agent Assignment ML service could not process the candidates.');
-  }
   if (
     !result
     || result.dispatch_request_id !== dispatchRequestId
@@ -311,6 +425,7 @@ async function requestCandidatePredictions(
       || seenRanks.has(prediction.rank)
       || prediction.rank < 1
       || prediction.rank > agents.length
+      || prediction.rank !== seenAgents.size + 1
       || (seenRanks.size > 0 && prediction.predicted_duration_minutes < previousDuration)
     ) {
       throw new HttpError(502, 'Smart Agent Assignment ML service returned invalid candidate rankings.');
@@ -397,7 +512,7 @@ export async function getAgentRecommendations(dispatchRequestId: string) {
     now,
   );
   const agentsById = new Map(eligibleAgents.map((agent) => [String(agent._id), agent]));
-  const recommendations = prediction.predictions.map((candidatePrediction) => {
+  const candidateContexts = prediction.predictions.map((candidatePrediction) => {
     const agent = agentsById.get(candidatePrediction.agent_id);
     if (!agent) throw new HttpError(502, 'Smart Agent Assignment ML service ranked an unknown agent.');
     const agentId = String(agent._id);
@@ -411,6 +526,35 @@ export async function getAgentRecommendations(dispatchRequestId: string) {
       completedDeliveries: 0,
       medianDurationMinutes: null,
     };
+    return {
+      candidatePrediction,
+      agent,
+      agentId,
+      activeDispatchCount,
+      maxOrders,
+      distanceKm,
+      history,
+    };
+  });
+  const suitabilityAssessments = calculateSuitabilityAssessments(candidateContexts.map((context) => ({
+    predictedDurationMinutes: context.candidatePrediction.predicted_duration_minutes,
+    activeDispatchCount: context.activeDispatchCount,
+    maxOrders: context.maxOrders,
+    distanceKm: context.distanceKm,
+    history: context.history,
+  })));
+  const recommendations = candidateContexts.map((context, index) => {
+    const {
+      candidatePrediction,
+      agent,
+      agentId,
+      activeDispatchCount,
+      maxOrders,
+      distanceKm,
+      history,
+    } = context;
+    const suitability = suitabilityAssessments[index];
+    if (!suitability) throw new HttpError(502, 'Smart Agent Assignment ranking could not be calculated.');
     const explanation = [
       `Package and priority capabilities match (${requiredCapabilities.join(', ')}).`,
       `Workload is ${activeDispatchCount} of ${maxOrders} active deliveries.`,
@@ -437,6 +581,7 @@ export async function getAgentRecommendations(dispatchRequestId: string) {
 
     return {
       rank: candidatePrediction.rank,
+      modelRank: candidatePrediction.rank,
       agent: {
         id: agentId,
         name: agent.name,
@@ -444,6 +589,8 @@ export async function getAgentRecommendations(dispatchRequestId: string) {
         vehicleType: agent.vehicle.vehicleType,
       },
       predictedDurationMinutes: Math.round(candidatePrediction.predicted_duration_minutes * 10) / 10,
+      suitabilityScore: suitability.score,
+      scoreExplanation: suitability.explanation,
       workload: { activeDispatchCount, maxOrders },
       distanceKm: distanceKm === null ? null : Math.round(distanceKm * 10) / 10,
       historicalCompletedDeliveries: history.completedDeliveries,
@@ -452,11 +599,16 @@ export async function getAgentRecommendations(dispatchRequestId: string) {
         : Math.round(history.medianDurationMinutes * 10) / 10,
       explanation,
     };
-  });
+  }).sort((first, second) =>
+    second.suitabilityScore - first.suitabilityScore
+    || first.predictedDurationMinutes - second.predictedDurationMinutes
+    || first.modelRank - second.modelRank
+    || first.agent.agentCode.localeCompare(second.agent.agentCode),
+  ).map((recommendation, index) => ({ ...recommendation, rank: index + 1 }));
 
   return {
     recommendations,
-    message: 'Eligible agents ranked by predicted delivery duration using a synthetic-data ML prototype.',
+    message: 'Eligible agents ranked by backend suitability score using predicted duration and available candidate context.',
     rankingData: {
       pickupCoordinatesAvailable: Boolean(requestPickup),
       agentsWithFreshGps: freshLocations.size,
@@ -469,6 +621,7 @@ export async function getAgentRecommendations(dispatchRequestId: string) {
     modelVersion: prediction.model_version,
     trainingSource: prediction.training_source,
     notes: [
+      'Suitability scores are calculated by backend ranking logic; they are comparative heuristics, not probabilities of delivery success.',
       'Predictions come from synthetic training data and are not validated against real-world delivery outcomes.',
       'Vehicle type is not currently a restriction in SWERV assignment rules.',
     ],

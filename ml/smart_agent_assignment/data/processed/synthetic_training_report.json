@@ -4,10 +4,30 @@
   "dataset_path": "C:\\project-dev\\swerv\\ml\\smart_agent_assignment\\data\\processed\\synthetic_agent_candidates.csv",
   "candidate_rows": 10000,
   "dispatch_scenarios": 1000,
-  "training_rows": 8000,
-  "test_rows": 2000,
-  "training_scenarios": 800,
-  "test_scenarios": 200,
+  "split_configuration": {
+    "method": "chronological_dispatch_grouped",
+    "training_fraction": 0.7,
+    "validation_fraction": 0.15,
+    "final_test_fraction": 0.15
+  },
+  "split_counts": {
+    "training": {
+      "candidate_rows": 7000,
+      "scenarios": 700
+    },
+    "validation": {
+      "candidate_rows": 1500,
+      "scenarios": 150
+    },
+    "final_test": {
+      "candidate_rows": 1500,
+      "scenarios": 150
+    }
+  },
+  "training_seed": 121,
+  "dataset_seed": 121,
+  "model_fit_rows": 8500,
+  "model_fit_scenarios": 850,
   "target_column": "delivery_duration_minutes",
   "feature_columns": [
     "priority",
@@ -27,39 +47,55 @@
     "recommendation_hour",
     "recommendation_day_of_week"
   ],
-  "metrics": {
+  "validation_metrics": {
     "linear_regression": {
-      "mae_minutes": 11.601910029900136,
-      "rmse_minutes": 15.40515083308737,
-      "r2": 0.8533993430221977,
-      "top_candidate_accuracy": 0.735
+      "mae_minutes": 11.437538100102426,
+      "rmse_minutes": 15.25999419826979,
+      "r2": 0.8606146197128516,
+      "top_candidate_accuracy": 0.6933333333333334,
+      "ndcg_at_1": 0.8204444444444444,
+      "ndcg_at_3": 0.8919823569238459
     },
     "random_forest": {
-      "mae_minutes": 10.462592833419473,
-      "rmse_minutes": 14.738693107856713,
-      "r2": 0.8658094420193607,
-      "top_candidate_accuracy": 0.68
+      "mae_minutes": 10.9136382811158,
+      "rmse_minutes": 15.135156641437618,
+      "r2": 0.8628858336830592,
+      "top_candidate_accuracy": 0.6933333333333334,
+      "ndcg_at_1": 0.8248888888888889,
+      "ndcg_at_3": 0.9097533150123767
     },
     "gradient_boosting": {
-      "mae_minutes": 8.441848000499538,
-      "rmse_minutes": 11.86635430171202,
-      "r2": 0.9130161493748838,
-      "top_candidate_accuracy": 0.72
+      "mae_minutes": 8.480804784135568,
+      "rmse_minutes": 11.802963002639663,
+      "r2": 0.9166144920024797,
+      "top_candidate_accuracy": 0.7,
+      "ndcg_at_1": 0.8296666666666666,
+      "ndcg_at_3": 0.9133894600575043
     }
+  },
+  "final_test_metrics": {
+    "mae_minutes": 8.529967180114777,
+    "rmse_minutes": 11.91419391008828,
+    "r2": 0.9091016863203819,
+    "top_candidate_accuracy": 0.7133333333333334,
+    "ndcg_at_1": 0.8407777777777778,
+    "ndcg_at_3": 0.9164033662846445
   },
   "best_model": "gradient_boosting",
   "best_model_artifact": "C:\\project-dev\\swerv\\ml\\smart_agent_assignment\\models\\synthetic\\gradient_boosting.joblib",
-  "best_model_version": "gradient_boosting-synthetic-c22e749e234e",
+  "best_model_version": "gradient_boosting-synthetic-c092cee9f5a4",
   "model_artifacts": {
     "linear_regression": "C:\\project-dev\\swerv\\ml\\smart_agent_assignment\\models\\synthetic\\linear_regression.joblib",
     "random_forest": "C:\\project-dev\\swerv\\ml\\smart_agent_assignment\\models\\synthetic\\random_forest.joblib",
     "gradient_boosting": "C:\\project-dev\\swerv\\ml\\smart_agent_assignment\\models\\synthetic\\gradient_boosting.joblib"
   },
   "model_versions": {
-    "linear_regression": "linear_regression-synthetic-8d7e96d3c23a",
-    "random_forest": "random_forest-synthetic-651ca3e5348a",
-    "gradient_boosting": "gradient_boosting-synthetic-c22e749e234e"
+    "linear_regression": "linear_regression-synthetic-26864063502f",
+    "random_forest": "random_forest-synthetic-ef2087225912",
+    "gradient_boosting": "gradient_boosting-synthetic-c092cee9f5a4"
   },
-  "real_world_accuracy_validated": false,
-  "note": "Metrics are based on synthetic candidate data and must not be treated as real-world performance."
+  "validation_report_path": "C:\\project-dev\\swerv\\ml\\smart_agent_assignment\\data\\processed\\validation_evaluation_report.json",
+  "final_test_report_path": "C:\\project-dev\\swerv\\ml\\smart_agent_assignment\\data\\processed\\final_test_evaluation_report.json",
+  "real_world_performance_validated": false,
+  "note": "Metrics are based on generated demo data and do not establish real-world performance."
 }

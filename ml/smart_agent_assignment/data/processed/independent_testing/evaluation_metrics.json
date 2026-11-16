@@ -5,107 +5,107 @@
   "seed": 20261107,
   "target_method": "Existing src.synthetic_dataset.delivery_duration function, with a new RNG seed and independently generated scenarios.",
   "metrics": {
-    "mae_minutes": 9.485468853078206,
-    "rmse_minutes": 13.086970155100207,
-    "r2": 0.8905602221352255
+    "mae_minutes": 9.390340099854324,
+    "rmse_minutes": 12.903260632710074,
+    "r2": 0.8936111980759482
   },
   "predictions": {
     "count": 20000,
     "finite_and_positive": true,
-    "minimum_minutes": 2.1107225151431326,
-    "maximum_minutes": 261.09334721089635
+    "minimum_minutes": 3.558129526119069,
+    "maximum_minutes": 258.075002478181
   },
   "error_by_conditions": {
     "priority": {
       "express": {
         "candidate_rows": 4480,
-        "mae_minutes": 9.22825031727256,
-        "rmse_minutes": 12.6240291350625
+        "mae_minutes": 9.204939839775374,
+        "rmse_minutes": 12.501189669354956
       },
       "standard": {
         "candidate_rows": 14050,
-        "mae_minutes": 9.575561263757413,
-        "rmse_minutes": 13.298012855444796
+        "mae_minutes": 9.465847227291922,
+        "rmse_minutes": 13.095873791189364
       },
       "urgent": {
         "candidate_rows": 1470,
-        "mae_minutes": 9.408285635640398,
-        "rmse_minutes": 12.422649845036817
+        "mae_minutes": 9.233685694858021,
+        "rmse_minutes": 12.237658209359088
       }
     },
     "package_category": {
       "documents": {
         "candidate_rows": 2280,
-        "mae_minutes": 8.887403534432254,
-        "rmse_minutes": 11.818697274545805
+        "mae_minutes": 8.776678488013566,
+        "rmse_minutes": 11.655773154157519
       },
       "food": {
         "candidate_rows": 3410,
-        "mae_minutes": 9.659109918925388,
-        "rmse_minutes": 13.457053417544765
+        "mae_minutes": 9.54466249882824,
+        "rmse_minutes": 13.223517976785642
       },
       "fragile": {
         "candidate_rows": 1510,
-        "mae_minutes": 10.669162766908808,
-        "rmse_minutes": 15.591515913421308
+        "mae_minutes": 10.492409384387969,
+        "rmse_minutes": 15.285879478518613
       },
       "heavy_goods": {
         "candidate_rows": 1430,
-        "mae_minutes": 12.275333460426516,
-        "rmse_minutes": 17.136466364593772
+        "mae_minutes": 11.969525408897946,
+        "rmse_minutes": 16.58793249010848
       },
       "other": {
         "candidate_rows": 1290,
-        "mae_minutes": 9.109902997734332,
-        "rmse_minutes": 12.323416983087947
+        "mae_minutes": 9.063912945721597,
+        "rmse_minutes": 12.230794697806125
       },
       "parcel": {
         "candidate_rows": 10080,
-        "mae_minutes": 9.03696375853209,
-        "rmse_minutes": 12.225004646896053
+        "mae_minutes": 8.987725071257985,
+        "rmse_minutes": 12.135867756976575
       }
     },
     "vehicle_type": {
       "bicycle": {
         "candidate_rows": 4015,
-        "mae_minutes": 12.144991545512893,
-        "rmse_minutes": 16.36119699201494
+        "mae_minutes": 11.829737664978014,
+        "rmse_minutes": 16.00066055230317
       },
       "car": {
         "candidate_rows": 3988,
-        "mae_minutes": 8.1013589758156,
-        "rmse_minutes": 10.835414103561499
+        "mae_minutes": 8.12261115989317,
+        "rmse_minutes": 10.828462048030104
       },
       "motorcycle": {
         "candidate_rows": 4015,
-        "mae_minutes": 7.806138861969069,
-        "rmse_minutes": 10.317317191719528
+        "mae_minutes": 7.869121067319123,
+        "rmse_minutes": 10.351560028169251
       },
       "truck": {
         "candidate_rows": 3996,
-        "mae_minutes": 10.602330707513127,
-        "rmse_minutes": 14.861365840189501
+        "mae_minutes": 10.443258452767054,
+        "rmse_minutes": 14.553291303039172
       },
       "van": {
         "candidate_rows": 3986,
-        "mae_minutes": 8.763285341883837,
-        "rmse_minutes": 11.98392527050082
+        "mae_minutes": 8.678286528851569,
+        "rmse_minutes": 11.829297606819754
       }
     },
     "gps_fresh": {
       "0": {
         "candidate_rows": 4482,
-        "mae_minutes": 7.205320641507655,
-        "rmse_minutes": 9.613456825553694
+        "mae_minutes": 7.075019522087146,
+        "rmse_minutes": 9.42792511454
       },
       "1": {
         "candidate_rows": 15518,
-        "mae_minutes": 10.14403466595739,
-        "rmse_minutes": 13.929923780341994
+        "mae_minutes": 10.059064602338696,
+        "rmse_minutes": 13.744433006219763
       }
     }
   },
-  "signed_error_mean_minutes": 0.9577929729346273,
-  "model_version": "gradient_boosting-synthetic-c22e749e234e",
+  "signed_error_mean_minutes": 1.0411292971620951,
+  "model_version": "gradient_boosting-synthetic-c092cee9f5a4",
   "dataset_path": "C:\\project-dev\\swerv\\ml\\smart_agent_assignment\\data\\processed\\independent_testing\\independent_agent_candidate_dataset.csv"
 }

@@ -1,8 +1,8 @@
 {
   "training_source": "synthetic",
   "model_name": "random_forest",
-  "model_version": "random_forest-synthetic-651ca3e5348a",
-  "artifact_sha256": "651ca3e5348a8acc41d34199b6d14f72014d7df71c1d57683a18f6adb04ead39",
+  "model_version": "random_forest-synthetic-ef2087225912",
+  "artifact_sha256": "ef2087225912be190bc027ff2493e6104f0a9320f703a2b77140434d9c86ce25",
   "target_column": "delivery_duration_minutes",
   "feature_columns": [
     "priority",
@@ -22,9 +22,64 @@
     "recommendation_hour",
     "recommendation_day_of_week"
   ],
-  "training_rows": 8000,
-  "test_rows": 2000,
-  "training_scenarios": 800,
-  "test_scenarios": 200,
-  "real_world_accuracy_validated": false
+  "feature_schema": {
+    "categorical_columns": [
+      "priority",
+      "package_category",
+      "vehicle_type",
+      "capability_profile"
+    ],
+    "numerical_columns": [
+      "weight_kg",
+      "quantity",
+      "pickup_to_destination_km",
+      "agent_to_pickup_km",
+      "active_workload",
+      "max_capacity",
+      "workload_ratio",
+      "gps_fresh",
+      "completed_delivery_count",
+      "historical_median_minutes",
+      "recommendation_hour",
+      "recommendation_day_of_week"
+    ]
+  },
+  "dataset_seed": 121,
+  "training_seed": 121,
+  "split_configuration": {
+    "method": "chronological_dispatch_grouped",
+    "training_fraction": 0.7,
+    "validation_fraction": 0.15,
+    "final_test_fraction": 0.15
+  },
+  "split_counts": {
+    "training": {
+      "candidate_rows": 7000,
+      "scenarios": 700
+    },
+    "validation": {
+      "candidate_rows": 1500,
+      "scenarios": 150
+    },
+    "final_test": {
+      "candidate_rows": 1500,
+      "scenarios": 150
+    }
+  },
+  "training_rows": 8500,
+  "training_scenarios": 850,
+  "validation_rows": 1500,
+  "validation_scenarios": 150,
+  "final_test_rows": 1500,
+  "final_test_scenarios": 150,
+  "validation_metrics": {
+    "mae_minutes": 10.9136382811158,
+    "rmse_minutes": 15.135156641437618,
+    "r2": 0.8628858336830592,
+    "top_candidate_accuracy": 0.6933333333333334,
+    "ndcg_at_1": 0.8248888888888889,
+    "ndcg_at_3": 0.9097533150123767
+  },
+  "selected_for_final_evaluation": false,
+  "real_world_performance_validated": false
 }

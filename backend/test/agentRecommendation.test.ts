@@ -14,6 +14,14 @@ import { createAccessToken } from '../src/utils/jwt.js';
 let mongo: MongoMemoryReplSet;
 let adminCookie = '';
 let operatorCookie = '';
+const originalSmartAgentApiKey = process.env.SMART_AGENT_ASSIGNMENT_API_KEY;
+
+type MockPrediction = {
+  agent_id: string;
+  agent_code: string;
+  predicted_duration_minutes: number;
+  rank: number;
+};
 
 function cookie(userId: string) {
   return `swerv_access=${createAccessToken(userId)}`;
@@ -62,6 +70,7 @@ function mockMlService(
   durationFor: (candidate: Record<string, unknown>) => number = (candidate) =>
     30 + Number(candidate.active_workload) * 10
       + (typeof candidate.agent_to_pickup_km === 'number' ? candidate.agent_to_pickup_km : 15),
+  mutatePredictions?: (predictions: MockPrediction[]) => void,
 ) {
   vi.stubGlobal('fetch', vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
     const requestBody = JSON.parse(String(init?.body)) as {
@@ -69,11 +78,12 @@ function mockMlService(
       candidates: Record<string, unknown>[];
     };
     const predictions = requestBody.candidates.map((candidate) => ({
-      agent_id: candidate.agent_id,
-      agent_code: candidate.agent_code,
+      agent_id: String(candidate.agent_id),
+      agent_code: String(candidate.agent_code),
       predicted_duration_minutes: durationFor(candidate),
     })).sort((first, second) => first.predicted_duration_minutes - second.predicted_duration_minutes)
       .map((item, index) => ({ ...item, rank: index + 1 }));
+    mutatePredictions?.(predictions);
     return {
       ok: true,
       status: 200,
@@ -110,6 +120,7 @@ beforeAll(async () => {
   process.env.NODE_ENV = 'test';
   process.env.JWT_SECRET = 'swerv-agent-recommendation-tests-secret-012345';
   process.env.JWT_EXPIRES_IN = '1d';
+  process.env.SMART_AGENT_ASSIGNMENT_API_KEY = 'smart-agent-recommendation-test-key';
   mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
   await mongoose.connect(mongo.getUri());
   await ensureDispatchRequestCollections();
@@ -117,6 +128,7 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
+  process.env.SMART_AGENT_ASSIGNMENT_API_KEY = 'smart-agent-recommendation-test-key';
   mockMlService();
   await Promise.all([
     DispatchRequest.deleteMany({}), DispatchRequestActivity.deleteMany({}),
@@ -134,10 +146,15 @@ afterAll(async () => {
   vi.unstubAllGlobals();
   await mongoose.disconnect();
   await mongo?.stop();
+  if (originalSmartAgentApiKey === undefined) {
+    delete process.env.SMART_AGENT_ASSIGNMENT_API_KEY;
+  } else {
+    process.env.SMART_AGENT_ASSIGNMENT_API_KEY = originalSmartAgentApiKey;
+  }
 });
 
 describe('agent recommendation endpoint', () => {
-  it('returns only eligible agents ranked by ML and explains missing GPS/history', async () => {
+  it('returns only eligible agents ranked by suitability and explains missing GPS/history', async () => {
     const dispatch = await createDispatchRequest({
       package: {
         description: 'Multi-item parcel', category: 'parcel', weightKg: 7.25, quantity: 3,
@@ -152,11 +169,22 @@ describe('agent recommendation endpoint', () => {
     const response = await recommend(dispatch.id, operatorCookie).expect(200);
     expect(response.body.data.recommendations.map((item: { agent: { id: string } }) => item.agent.id))
       .toEqual([available.id, busy.id]);
+    expect(response.body.data.recommendedAgent.agent.id).toBe(available.id);
+    expect(response.body.data.rankedAlternatives.map((item: { agent: { id: string } }) => item.agent.id))
+      .toEqual([busy.id]);
     expect(response.body.data.recommendations[0]).toMatchObject({
       rank: 1, agent: { name: 'Free Driver', vehicleType: 'van' },
       predictedDurationMinutes: 45,
       distanceKm: null, historicalMedianDurationMinutes: null,
     });
+    expect(response.body.data.recommendations[0].suitabilityScore).toBeGreaterThan(
+      response.body.data.recommendations[1].suitabilityScore,
+    );
+    expect(response.body.data.recommendations.every(
+      (item: { suitabilityScore: number }) => item.suitabilityScore >= 0 && item.suitabilityScore <= 100,
+    )).toBe(true);
+    expect(response.body.data.recommendations[0].scoreExplanation.join(' '))
+      .toContain('not a probability of success');
     expect(response.body.data.recommendations[0].explanation.join(' ')).toContain('fresh agent GPS is unavailable');
     expect(response.body.data.recommendations[0].explanation.join(' ')).toContain('fewer than 10');
     expect(response.body.data).toMatchObject({
@@ -180,6 +208,8 @@ describe('agent recommendation endpoint', () => {
     expect(mlRequest.candidates[0]).not.toHaveProperty('email');
     expect(mlRequest.candidates[0]).not.toHaveProperty('phone');
     expect(mlRequest.dispatch).not.toHaveProperty('address');
+    expect(new Headers(fetchOptions?.headers).get('authorization'))
+      .toBe('Bearer smart-agent-recommendation-test-key');
   });
 
   it('uses fresh GPS distance and ignores missing, stale, or future-received locations', async () => {
@@ -206,17 +236,29 @@ describe('agent recommendation endpoint', () => {
     expect(response.body.data.rankingData.agentsWithFreshGps).toBe(2);
   });
 
-  it('scores historical performance only after ten valid completed deliveries', async () => {
+  it('uses valid historical performance in the suitability score', async () => {
     const dispatch = await createDispatchRequest();
-    const agent = await createAgent();
+    const agent = await createAgent({ name: 'Faster History' });
+    const slowerHistoryAgent = await createAgent({ name: 'Slower History' });
     for (let index = 0; index < 10; index += 1) await addHistoricalDelivery(agent._id, 20 + index);
+    for (let index = 0; index < 10; index += 1) await addHistoricalDelivery(slowerHistoryAgent._id, 60 + index);
+    mockMlService(() => 50);
 
     const response = await recommend(dispatch.id).expect(200);
-    expect(response.body.data.recommendations[0]).toMatchObject({
+    const [recommended, alternative] = response.body.data.recommendations;
+    expect(recommended).toMatchObject({
+      agent: { id: agent.id },
       historicalCompletedDeliveries: 10,
       historicalMedianDurationMinutes: 24.5,
     });
-    expect(response.body.data.recommendations[0].predictedDurationMinutes).toBeGreaterThan(0);
+    expect(alternative).toMatchObject({
+      agent: { id: slowerHistoryAgent.id },
+      historicalCompletedDeliveries: 10,
+      historicalMedianDurationMinutes: 64.5,
+    });
+    expect(recommended.predictedDurationMinutes).toBeGreaterThan(0);
+    expect(recommended.suitabilityScore).toBeGreaterThan(alternative.suitabilityScore);
+    expect(recommended.scoreExplanation.join(' ')).toContain('24.5 minutes across 10 valid deliveries');
     expect(response.body.data.rankingData.historicalPerformanceAvailable).toBe(true);
   });
 
@@ -244,6 +286,8 @@ describe('agent recommendation endpoint', () => {
     const noAgents = await createDispatchRequest();
     const emptyResponse = await recommend(noAgents.id).expect(200);
     expect(emptyResponse.body.data.recommendations).toEqual([]);
+    expect(emptyResponse.body.data.recommendedAgent).toBeNull();
+    expect(emptyResponse.body.data.rankedAlternatives).toEqual([]);
     expect(emptyResponse.body.data.predictionStatus).toBe('no_eligible_candidates');
     expect(emptyResponse.body.message).toContain('No eligible agents');
 
@@ -262,6 +306,73 @@ describe('agent recommendation endpoint', () => {
     await createAgent();
     const response = await recommend(dispatch.id).expect(503);
     expect(response.body.message).toContain('model is unavailable');
+  });
+
+  it('fails safely when the API key is missing', async () => {
+    const dispatch = await createDispatchRequest();
+    await createAgent();
+    const configuredKey = process.env.SMART_AGENT_ASSIGNMENT_API_KEY;
+    delete process.env.SMART_AGENT_ASSIGNMENT_API_KEY;
+    try {
+      const response = await recommend(dispatch.id).expect(503);
+      expect(response.body.message).toContain('authentication is not configured');
+    } finally {
+      if (configuredKey === undefined) {
+        delete process.env.SMART_AGENT_ASSIGNMENT_API_KEY;
+      } else {
+        process.env.SMART_AGENT_ASSIGNMENT_API_KEY = configuredKey;
+      }
+    }
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('maps ML service authentication failures without exposing credentials', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: false,
+      status: 401,
+      json: async () => ({ detail: 'invalid API key' }),
+    }) as Response));
+    const dispatch = await createDispatchRequest();
+    await createAgent();
+
+    const response = await recommend(dispatch.id).expect(503);
+    expect(response.body.message).toContain('service authentication failed');
+    expect(response.body.message).not.toContain('smart-agent-recommendation-test-key');
+  });
+
+  it('maps upstream timeouts to a safe unavailable response', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      throw new DOMException('Request timed out.', 'TimeoutError');
+    }));
+    const dispatch = await createDispatchRequest();
+    await createAgent();
+
+    const response = await recommend(dispatch.id).expect(503);
+    expect(response.body.message).toContain('ML service is unavailable');
+  });
+
+  it('rejects ML predictions for unknown candidate IDs', async () => {
+    mockMlService(undefined, (predictions) => {
+      predictions[0]!.agent_id = 'unknown-agent';
+    });
+    const dispatch = await createDispatchRequest();
+    await createAgent();
+    await createAgent();
+
+    await recommend(dispatch.id).expect(502);
+  });
+
+  it('rejects ML prediction ranks that do not match their returned order', async () => {
+    mockMlService(undefined, (predictions) => {
+      predictions[0]!.rank = 2;
+      predictions[1]!.rank = 1;
+    });
+    const dispatch = await createDispatchRequest();
+    await createAgent();
+    await createAgent();
+
+    await recommend(dispatch.id).expect(502);
   });
 
   it('requires an Admin or Operator and leaves dispatch and agent records unchanged', async () => {

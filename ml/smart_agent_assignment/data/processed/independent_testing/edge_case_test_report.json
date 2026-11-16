@@ -4,14 +4,14 @@
     "health": {
       "passed": true,
       "http_status": 200,
-      "model_version": "gradient_boosting-synthetic-c22e749e234e",
+      "model_version": "gradient_boosting-synthetic-c092cee9f5a4",
       "training_source": "synthetic"
     },
     "multiple_candidate_prediction": {
       "passed": true,
       "http_status": 200,
       "candidate_predictions": 10,
-      "model_version": "gradient_boosting-synthetic-c22e749e234e"
+      "model_version": "gradient_boosting-synthetic-c092cee9f5a4"
     },
     "missing_optional_information": {
       "passed": true,
@@ -24,8 +24,8 @@
       "passed": true,
       "http_status": 200,
       "predictions": [
-        87.1,
-        87.1
+        87.3,
+        87.3
       ]
     },
     "invalid_weight_rejected": {

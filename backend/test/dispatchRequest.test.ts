@@ -467,6 +467,30 @@ describe('dispatch request foundation', () => {
     expect(events.every((event) => event.performedBy.toString() === adminId)).toBe(true);
   });
 
+  it('rejects duplicate assignment without consuming capacity twice', async () => {
+    const dispatchRequest = await createRequest();
+    const agent = await createAgent({ capacity: { maxOrders: 1 } });
+
+    await request(app)
+      .patch(`/api/dispatch-requests/${dispatchRequest._id}/assignment`)
+      .set('Cookie', adminCookie)
+      .send({ agentId: agent.id })
+      .expect(200);
+    const duplicate = await request(app)
+      .patch(`/api/dispatch-requests/${dispatchRequest._id}/assignment`)
+      .set('Cookie', adminCookie)
+      .send({ agentId: agent.id })
+      .expect(409);
+
+    expect(duplicate.body.message).toContain('already assigned');
+    expect((await DispatchRequest.findById(dispatchRequest._id))?.status).toBe('assigned');
+    expect((await Agent.findById(agent.id))?.activeDispatchCount).toBe(1);
+    expect(await DispatchRequestActivity.countDocuments({
+      dispatchRequestId: dispatchRequest._id,
+      eventType: 'assignment_changed',
+    })).toBe(1);
+  });
+
   it('stores an immutable snapshot of request coordinates on assignment', async () => {
     const dispatchRequest = await createRequest({
       pickup: { ...validRequest.pickup, latitude: 45.523, longitude: -122.676 },

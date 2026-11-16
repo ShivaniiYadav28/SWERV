@@ -25,6 +25,7 @@ import {
   getDispatchRequest,
   getAgentRecommendations,
   requestDemoDeliveryTimePrediction,
+  sanitizeRecommendationDisplayText,
   updateDispatchRequestStatus,
   updateDispatchRequestCoordinates,
   type DispatchRequestFilters,
@@ -835,7 +836,9 @@ function DispatchRequestDrawer({
         requestId: request._id,
         state: {
           status: 'error',
-          message: error instanceof Error ? error.message : 'Agent recommendations could not be loaded.',
+          message: sanitizeRecommendationDisplayText(
+            error instanceof Error ? error.message : 'Agent recommendations could not be loaded.',
+          ),
         },
       })
     }
@@ -952,32 +955,44 @@ function DispatchRequestDrawer({
                       <button type="button" onClick={() => void loadRecommendations()}>Retry</button>
                     </div>
                   ) : recommendationState.status === 'success' ? (
-                    recommendationState.result.recommendations.length ? (
+                    recommendationState.result.recommendedAgent ? (
                       <div className="dispatch-recommendation-list" aria-live="polite">
                         <p className="dispatch-recommendations-note">
-                          Ranked by predicted delivery duration · Synthetic prototype · Model {recommendationState.result.modelVersion}
+                          Illustrative Demo Recommendations. The backend calculates these comparative scores from available candidate context; they are not probabilities or verified operational outcomes.
                         </p>
-                        {recommendationState.result.recommendations.map((recommendation) => (
-                          <RecommendationCard
-                            key={recommendation.agent.id}
-                            recommendation={recommendation}
-                            minimumHistoricalDeliveries={recommendationState.result.rankingData.minimumHistoricalDeliveries}
-                            pickupCoordinatesAvailable={recommendationState.result.rankingData.pickupCoordinatesAvailable}
-                            isSelected={selectedRecommendedAgentId === recommendation.agent.id}
-                            onSelect={() => setSelectedRecommendedAgentId(recommendation.agent.id)}
-                          />
-                        ))}
+                        <RecommendationCard
+                          recommendation={recommendationState.result.recommendedAgent}
+                          minimumHistoricalDeliveries={recommendationState.result.rankingData.minimumHistoricalDeliveries}
+                          pickupCoordinatesAvailable={recommendationState.result.rankingData.pickupCoordinatesAvailable}
+                          isSelected={selectedRecommendedAgentId === recommendationState.result.recommendedAgent.agent.id}
+                          onSelect={() => setSelectedRecommendedAgentId(recommendationState.result.recommendedAgent?.agent.id ?? '')}
+                        />
+                        {recommendationState.result.rankedAlternatives.length > 0 && (
+                          <section className="dispatch-ranked-alternatives" aria-label="Ranked alternative agents">
+                            <h4>Ranked alternatives</h4>
+                            {recommendationState.result.rankedAlternatives.map((recommendation) => (
+                              <RecommendationCard
+                                key={recommendation.agent.id}
+                                recommendation={recommendation}
+                                minimumHistoricalDeliveries={recommendationState.result.rankingData.minimumHistoricalDeliveries}
+                                pickupCoordinatesAvailable={recommendationState.result.rankingData.pickupCoordinatesAvailable}
+                                isSelected={selectedRecommendedAgentId === recommendation.agent.id}
+                                onSelect={() => setSelectedRecommendedAgentId(recommendation.agent.id)}
+                              />
+                            ))}
+                          </section>
+                        )}
                         {recommendationState.result.notes.map((note) => (
                           <p className="dispatch-recommendations-note" key={note}>{note}</p>
                         ))}
                       </div>
                     ) : (
                       <p className="dispatch-recommendations-state" role="status">
-                        No eligible agents are available for this request right now.
+                        No eligible agents currently meet this request's availability, capacity, and capability requirements.
                       </p>
                     )
                   ) : (
-                    <p className="dispatch-recommendations-state">Find eligible agents ranked by predicted delivery duration.</p>
+                    <p className="dispatch-recommendations-state">Compare eligible agents by assignment suitability and predicted delivery duration.</p>
                   )}
                 </section>
               )}
@@ -1027,20 +1042,33 @@ function RecommendationCard({
   onSelect: () => void
 }) {
   const hasHistory = recommendation.historicalMedianDurationMinutes !== null
+  const reasons = recommendation.scoreExplanation.length
+    ? recommendation.scoreExplanation
+    : recommendation.explanation
 
   return (
     <article className={`dispatch-recommendation-card${recommendation.rank === 1 ? ' recommendation-top' : ''}`}>
       <div className="dispatch-recommendation-card-heading">
         <div>
           <span className="dispatch-recommendation-rank">
-            {recommendation.rank === 1 ? 'Top recommendation' : `Rank ${recommendation.rank}`}
+            {recommendation.rank === 1 ? 'Recommended agent' : `Alternative #${recommendation.rank - 1}`}
           </span>
           <strong>{recommendation.agent.name}</strong>
-          <span>{recommendation.agent.agentCode}</span>
+          <span>{recommendation.agent.agentCode} · {formatCategory(recommendation.agent.vehicleType)}</span>
         </div>
-        <span className="dispatch-recommendation-score">{recommendation.predictedDurationMinutes.toFixed(1)} min</span>
+        <div className="dispatch-recommendation-metrics">
+          <span className="dispatch-recommendation-suitability">
+            <strong>{recommendation.suitabilityScore.toFixed(0)}</strong><small>/100</small>
+            <span>Assignment suitability</span>
+          </span>
+          <span className="dispatch-recommendation-duration">
+            <strong>{recommendation.predictedDurationMinutes.toFixed(1)} min</strong>
+            <span>Predicted delivery</span>
+          </span>
+        </div>
       </div>
       <div className="dispatch-recommendation-facts">
+        <span>Availability: Available</span>
         <span>Workload: {recommendation.workload.activeDispatchCount}/{recommendation.workload.maxOrders} active</span>
         {recommendation.distanceKm !== null ? (
           <span>Distance to pickup: {recommendation.distanceKm.toFixed(1)} km</span>
@@ -1056,13 +1084,17 @@ function RecommendationCard({
           </span>
         ) : (
           <span>
-            Insufficient history: {recommendation.historicalCompletedDeliveries} of {minimumHistoricalDeliveries} valid deliveries
+            Historical context unavailable: {recommendation.historicalCompletedDeliveries} of {minimumHistoricalDeliveries} qualifying deliveries
           </span>
         )}
+        <span>Predicted-duration rank: {recommendation.modelRank}</span>
       </div>
-      <ul className="dispatch-recommendation-reasons">
-        {recommendation.explanation.map((reason, index) => <li key={`${index}-${reason}`}>{reason}</li>)}
-      </ul>
+      <details className="dispatch-recommendation-explanation" open={recommendation.rank === 1}>
+        <summary>{recommendation.rank === 1 ? 'Why this agent was recommended' : 'Why this alternative scored this way'}</summary>
+        <ul className="dispatch-recommendation-reasons">
+          {reasons.map((reason, index) => <li key={`${index}-${reason}`}>{reason}</li>)}
+        </ul>
+      </details>
       <button
         className="dispatch-recommendation-select"
         type="button"
@@ -1201,7 +1233,9 @@ function AssignmentPanel({
       })
       setAgents(result.agents)
     } catch (error) {
-      setAgentError(error instanceof Error ? error.message : 'Agents could not be loaded.')
+      setAgentError(sanitizeRecommendationDisplayText(
+        error instanceof Error ? error.message : 'Agents could not be loaded.',
+      ))
     } finally {
       setIsLoadingAgents(false)
     }
@@ -1218,7 +1252,9 @@ function AssignmentPanel({
       setSelectedAgentId('')
       onAssigned()
     } catch (error) {
-      setAssignmentError(error instanceof Error ? error.message : 'The agent could not be assigned.')
+      setAssignmentError(sanitizeRecommendationDisplayText(
+        error instanceof Error ? error.message : 'The agent could not be assigned.',
+      ))
     } finally {
       setIsAssigning(false)
     }
