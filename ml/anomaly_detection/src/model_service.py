@@ -2,57 +2,166 @@
 
 from __future__ import annotations
 
+import io
+import json
 import math
+import hashlib
 from pathlib import Path
 from typing import Any, Mapping
 
 import joblib
 import numpy as np
 import pandas as pd
+from sklearn.ensemble import IsolationForest
 
-from .synthetic_dataset import PACKAGE_CATEGORIES, PRIORITIES, VEHICLE_TYPES
+from .synthetic_dataset import (
+    CATEGORICAL_FEATURES,
+    DATA_SOURCE,
+    FEATURE_COLUMNS,
+    NORMAL_LABEL,
+    NUMERIC_FEATURES,
+    PACKAGE_CATEGORIES,
+    PRIORITIES,
+    VEHICLE_TYPES,
+)
+
+
+EXPECTED_MODEL_VERSION = "isolation_forest-synthetic-b3c24dbf05ff"
+EXPECTED_ARTIFACT_SHA256 = "f5b9fc438955ab2cdd3a55330653b3a6ea513dc6ffd13e75bac2b53f4a524f80"
 
 
 class ModelUnavailableError(RuntimeError):
     """Raised when the saved anomaly artifact is missing or invalid."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        artifact_integrity_status: str = "unavailable",
+        feature_schema_compatible: bool = False,
+    ) -> None:
+        super().__init__(message)
+        self.artifact_integrity_status = artifact_integrity_status
+        self.feature_schema_compatible = feature_schema_compatible
 
 
 class InvalidScenarioError(ValueError):
     """Raised when a prediction row does not match the model feature schema."""
 
 
-def load_model_artifact(model_path: Path) -> dict[str, Any]:
-    """Load the complete model pipeline artifact once and verify its metadata."""
+def load_model_artifact(
+    model_path: Path,
+    metadata_path: Path | None = None,
+    *,
+    expected_model_version: str | None = EXPECTED_MODEL_VERSION,
+    expected_artifact_sha256: str | None = EXPECTED_ARTIFACT_SHA256,
+) -> dict[str, Any]:
+    """Verify pinned bytes and schema before deserializing the trusted artifact."""
+    metadata_path = metadata_path or model_path.with_suffix(".metadata.json")
     try:
-        artifact = joblib.load(model_path)
-    except FileNotFoundError as error:
-        raise ModelUnavailableError("No trained anomaly model artifact is available.") from error
+        artifact_bytes = model_path.read_bytes()
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ModelUnavailableError("The saved anomaly artifact or metadata is unavailable.") from error
+
+    artifact_digest = hashlib.sha256(artifact_bytes).hexdigest()
+    if not isinstance(metadata, dict):
+        raise ModelUnavailableError(
+            "The anomaly artifact metadata has an invalid structure.",
+            artifact_integrity_status="verified",
+        )
+    if artifact_digest != metadata.get("artifact_sha256") or (
+        expected_artifact_sha256 is not None and artifact_digest != expected_artifact_sha256
+    ):
+        raise ModelUnavailableError(
+            "The saved anomaly artifact failed its SHA-256 integrity check.",
+            artifact_integrity_status="failed",
+        )
+
+    feature_schema_compatible = metadata.get("features") == FEATURE_COLUMNS
+    expected_metadata = {
+        "data_source": DATA_SOURCE,
+        "synthetic_only": True,
+        "real_world_accuracy_claim": False,
+        "model_name": "isolation_forest",
+        "selected_model": "isolation_forest",
+        "isolation_forest_fit_labels_used": False,
+    }
+    metadata_compatible = feature_schema_compatible and all(
+        metadata.get(key) == value for key, value in expected_metadata.items()
+    )
+    contamination = metadata.get("validation_contamination") if isinstance(metadata, dict) else None
+    threshold = metadata.get("decision_threshold") if isinstance(metadata, dict) else None
+    if (
+        not metadata_compatible
+        or not isinstance(metadata.get("model_version"), str)
+        or (expected_model_version is not None and metadata["model_version"] != expected_model_version)
+        or isinstance(contamination, bool)
+        or not isinstance(contamination, (int, float))
+        or not math.isfinite(contamination)
+        or not 0 < contamination <= 0.5
+        or isinstance(threshold, bool)
+        or not isinstance(threshold, (int, float))
+        or not math.isfinite(threshold)
+    ):
+        raise ModelUnavailableError(
+            "The anomaly artifact metadata is incompatible with the expected model schema.",
+            artifact_integrity_status="verified",
+            feature_schema_compatible=feature_schema_compatible,
+        )
+
+    try:
+        # Load the exact byte string whose digest was verified above.
+        artifact = joblib.load(io.BytesIO(artifact_bytes))
     except Exception as error:
-        raise ModelUnavailableError("The saved anomaly model could not be loaded.") from error
+        raise ModelUnavailableError(
+            "The verified anomaly artifact could not be loaded.",
+            artifact_integrity_status="verified",
+            feature_schema_compatible=True,
+        ) from error
 
     required_fields = {
         "model", "preprocessor", "model_name", "model_version", "detection_mode",
-        "threshold", "feature_columns", "numeric_features", "categorical_features",
-        "normal_label", "data_source", "synthetic_provenance",
+        "threshold", "contamination", "feature_columns", "numeric_features",
+        "categorical_features", "normal_label", "data_source", "synthetic_provenance",
     }
-    if not isinstance(artifact, dict) or not required_fields.issubset(artifact):
-        raise ModelUnavailableError("The saved anomaly model has invalid metadata.")
+    schema_compatible = (
+        isinstance(artifact, dict)
+        and required_fields.issubset(artifact)
+        and artifact.get("feature_columns") == FEATURE_COLUMNS
+        and artifact.get("numeric_features") == NUMERIC_FEATURES
+        and artifact.get("categorical_features") == CATEGORICAL_FEATURES
+    )
+    if not schema_compatible:
+        raise ModelUnavailableError(
+            "The loaded anomaly artifact has an incompatible feature schema.",
+            artifact_integrity_status="verified",
+            feature_schema_compatible=False,
+        )
     if (
-        not isinstance(artifact["model_version"], str)
-        or "synthetic" not in artifact["model_version"]
-        or artifact["data_source"] != "synthetic"
-        or artifact["detection_mode"] not in {"supervised", "unsupervised"}
-        or not isinstance(artifact["feature_columns"], list)
-        or not all(isinstance(column, str) for column in artifact["feature_columns"])
+        not isinstance(artifact["model"], IsolationForest)
+        or artifact["model_name"] != metadata["model_name"]
+        or artifact["model_version"] != metadata["model_version"]
+        or artifact["detection_mode"] != "unsupervised"
+        or artifact["normal_label"] != NORMAL_LABEL
+        or artifact["data_source"] != DATA_SOURCE
+        or not isinstance(artifact["synthetic_provenance"], str)
+        or not artifact["synthetic_provenance"].strip()
         or isinstance(artifact["threshold"], bool)
         or not isinstance(artifact["threshold"], (int, float))
         or not math.isfinite(artifact["threshold"])
+        or isinstance(artifact["contamination"], bool)
+        or not isinstance(artifact["contamination"], (int, float))
+        or not math.isfinite(artifact["contamination"])
+        or not math.isclose(float(artifact["threshold"]), float(threshold), rel_tol=0, abs_tol=1e-12)
+        or not math.isclose(float(artifact["contamination"]), float(contamination), rel_tol=0, abs_tol=1e-12)
+        or not hasattr(artifact["preprocessor"], "transform")
     ):
-        raise ModelUnavailableError("The saved anomaly model metadata is invalid.")
-    if not hasattr(artifact["model"], "decision_function") and not hasattr(artifact["model"], "predict_proba"):
-        raise ModelUnavailableError("The saved anomaly model cannot score scenarios.")
-    if not hasattr(artifact["preprocessor"], "transform"):
-        raise ModelUnavailableError("The saved anomaly preprocessing artifact is invalid.")
+        raise ModelUnavailableError(
+            "The loaded anomaly artifact does not match its verified metadata.",
+            artifact_integrity_status="verified",
+            feature_schema_compatible=True,
+        )
     return artifact
 
 

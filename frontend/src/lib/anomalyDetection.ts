@@ -20,7 +20,33 @@ export async function getAnomalyAlerts(filters: { mode: DetectionMode; page: num
 export async function runAnomalyDetection(mode: DetectionMode) {
   const response = await apiRequest<DetectionResult>('/api/anomaly-detection/detect', { method: 'POST', body: JSON.stringify({ mode }) })
   if (!response.data) throw new Error('Detection result was missing from the response.')
-  return response.data
+  const result = response.data
+  const expectedSource = mode === 'real' ? 'backend_rule_based' : 'machine_learning_demo'
+  if (
+    result.mode !== mode
+    || result.detectionSource !== expectedSource
+    || !Number.isSafeInteger(result.scenarioCount)
+    || result.scenarioCount < 0
+    || !Number.isSafeInteger(result.candidateCount)
+    || result.candidateCount < 0
+    || !Number.isSafeInteger(result.savedAlerts)
+    || result.savedAlerts < 0
+    || !Number.isSafeInteger(result.duplicateAlertsSkipped)
+    || result.duplicateAlertsSkipped < 0
+  ) {
+    throw new Error('Anomaly detection returned an invalid result.')
+  }
+  return {
+    ...result,
+    modelName: typeof result.modelName === 'string' ? result.modelName : null,
+    modelVersion: typeof result.modelVersion === 'string' ? result.modelVersion : null,
+    trainingDataSource: result.trainingDataSource === 'synthetic' || result.trainingDataSource === 'not_applicable'
+      ? result.trainingDataSource : null,
+    syntheticProvenance: typeof result.syntheticProvenance === 'string' ? result.syntheticProvenance : null,
+    limitations: Array.isArray(result.limitations)
+      ? result.limitations.filter((limitation): limitation is string => typeof limitation === 'string')
+      : [],
+  }
 }
 
 export async function getAnomalyAlert(id: string, mode: DetectionMode) {

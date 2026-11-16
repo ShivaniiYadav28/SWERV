@@ -19,14 +19,27 @@
     "gps_coordinates_valid",
     "gps_timestamps_valid",
     "gps_pair_available",
+    "expected_delivery_duration_minutes",
     "reassignment_count",
     "assignment_event_count",
     "activity_history_complete",
     "delivery_duration_minutes",
+    "delivery_delay_minutes",
+    "expected_delivery_distance_km",
+    "delivery_distance_km",
+    "planned_route_distance_km",
+    "actual_route_distance_km",
+    "route_deviation_ratio",
+    "distance_to_expected_ratio",
+    "failed_delivery_attempts",
+    "agent_failed_deliveries_7d",
     "status_event_count",
     "status_transition_valid",
     "agent_status_change_count",
+    "agent_activity_ratio",
     "agent_active_workload",
+    "dispatch_burst_count_10m",
+    "dispatch_repeat_route_count_1h",
     "dispatch_creation_hour",
     "data_quality_issue_count",
     "priority",
@@ -40,75 +53,85 @@
   "scenario_id_is_a_model_feature": false,
   "scenario_splitting": "Each scenario ID appears in exactly one split.",
   "anomaly_weights": {
-    "normal": 0.72,
-    "gps_implausible_jump": 0.06,
-    "gps_invalid_coordinates": 0.04,
-    "gps_stale_update": 0.05,
-    "repeated_dispatch_reassignment": 0.05,
-    "unusual_delivery_duration": 0.05,
-    "invalid_status_transition": 0.03
+    "normal": 0.88,
+    "delivery_delay": 0.015,
+    "gps_coordinate_jump": 0.015,
+    "route_deviation": 0.015,
+    "repeated_delivery_failures": 0.015,
+    "unusual_agent_activity": 0.015,
+    "suspicious_dispatch_pattern": 0.015,
+    "abnormal_delivery_duration": 0.015,
+    "abnormal_delivery_distance": 0.015
   },
   "summary": {
     "train": {
       "rows": 7000,
-      "normal_rows": 5145,
-      "anomaly_rows": 1855,
+      "normal_rows": 6163,
+      "anomaly_rows": 837,
       "anomaly_type_counts": {
-        "gps_implausible_jump": 390,
-        "gps_invalid_coordinates": 286,
-        "gps_stale_update": 329,
-        "invalid_status_transition": 205,
-        "normal": 5145,
-        "repeated_dispatch_reassignment": 332,
-        "unusual_delivery_duration": 313
+        "abnormal_delivery_distance": 96,
+        "abnormal_delivery_duration": 121,
+        "delivery_delay": 107,
+        "gps_coordinate_jump": 102,
+        "normal": 6163,
+        "repeated_delivery_failures": 106,
+        "route_deviation": 104,
+        "suspicious_dispatch_pattern": 89,
+        "unusual_agent_activity": 112
       }
     },
     "validation": {
       "rows": 1500,
-      "normal_rows": 1074,
-      "anomaly_rows": 426,
+      "normal_rows": 1324,
+      "anomaly_rows": 176,
       "anomaly_type_counts": {
-        "gps_implausible_jump": 93,
-        "gps_invalid_coordinates": 64,
-        "gps_stale_update": 81,
-        "invalid_status_transition": 31,
-        "normal": 1074,
-        "repeated_dispatch_reassignment": 84,
-        "unusual_delivery_duration": 73
+        "abnormal_delivery_distance": 20,
+        "abnormal_delivery_duration": 22,
+        "delivery_delay": 31,
+        "gps_coordinate_jump": 27,
+        "normal": 1324,
+        "repeated_delivery_failures": 13,
+        "route_deviation": 23,
+        "suspicious_dispatch_pattern": 23,
+        "unusual_agent_activity": 17
       }
     },
     "test": {
       "rows": 1500,
-      "normal_rows": 1088,
-      "anomaly_rows": 412,
+      "normal_rows": 1304,
+      "anomaly_rows": 196,
       "anomaly_type_counts": {
-        "gps_implausible_jump": 87,
-        "gps_invalid_coordinates": 50,
-        "gps_stale_update": 79,
-        "invalid_status_transition": 44,
-        "normal": 1088,
-        "repeated_dispatch_reassignment": 80,
-        "unusual_delivery_duration": 72
+        "abnormal_delivery_distance": 29,
+        "abnormal_delivery_duration": 19,
+        "delivery_delay": 34,
+        "gps_coordinate_jump": 21,
+        "normal": 1304,
+        "repeated_delivery_failures": 24,
+        "route_deviation": 27,
+        "suspicious_dispatch_pattern": 23,
+        "unusual_agent_activity": 19
       }
     },
     "demo": {
       "rows": 700,
-      "normal_rows": 486,
-      "anomaly_rows": 214,
+      "normal_rows": 611,
+      "anomaly_rows": 89,
       "anomaly_type_counts": {
-        "gps_implausible_jump": 38,
-        "gps_invalid_coordinates": 32,
-        "gps_stale_update": 41,
-        "invalid_status_transition": 26,
-        "normal": 486,
-        "repeated_dispatch_reassignment": 34,
-        "unusual_delivery_duration": 43
+        "abnormal_delivery_distance": 5,
+        "abnormal_delivery_duration": 12,
+        "delivery_delay": 17,
+        "gps_coordinate_jump": 12,
+        "normal": 611,
+        "repeated_delivery_failures": 14,
+        "route_deviation": 9,
+        "suspicious_dispatch_pattern": 9,
+        "unusual_agent_activity": 11
       }
     }
   },
   "generation_notes": [
-    "Synthetic operational ranges are illustrative, not learned from SWERV history.",
-    "Normal rows include borderline durations, GPS accuracy, workloads, priorities, and missing GPS pairs.",
-    "Anomaly categories are labels for synthetic scenarios, not confirmed SWERV incidents."
+    "Operational ranges and relationships are illustrative assumptions, not learned from SWERV records.",
+    "Duration and delay derive from expected delivery time; distance ratios derive from expected and planned routes.",
+    "Normal rows include borderline values and missing GPS pairs; generated labels are not confirmed SWERV incidents."
   ]
 }

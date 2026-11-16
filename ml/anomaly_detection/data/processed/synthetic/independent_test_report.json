@@ -2,45 +2,77 @@
   "data_source": "synthetic",
   "synthetic_only": true,
   "real_world_accuracy_claim": false,
-  "model_name": "random_forest",
-  "model_version": "random_forest-synthetic-42981f2b88fd",
+  "model_name": "isolation_forest",
+  "model_version": "isolation_forest-synthetic-b3c24dbf05ff",
   "test_scenarios": 1500,
   "metrics": {
-    "threshold": 0.6670154996603103,
-    "precision": 1.0,
-    "recall": 0.9830097087378641,
-    "f1": 0.9914320685434517,
-    "accuracy": 0.9953333333333333,
+    "threshold": 0.001656785626310997,
+    "precision": 0.7588235294117647,
+    "recall": 0.6581632653061225,
+    "f1": 0.7049180327868853,
+    "accuracy": 0.928,
     "confusion_matrix": [
       [
-        1088,
-        0
+        1263,
+        41
       ],
       [
-        7,
-        405
+        67,
+        129
       ]
     ],
-    "false_positive_rate": 0.0,
-    "false_negative_rate": 0.01699029126213592,
-    "roc_auc": 0.9993820495431183,
-    "precision_recall_auc": 0.9985743089909097,
-    "predicted_category_counts": {
-      "gps_implausible_jump": 87,
-      "gps_invalid_coordinates": 50,
-      "gps_stale_update": 79,
-      "invalid_status_transition": 44,
-      "normal": 1095,
-      "repeated_dispatch_reassignment": 80,
-      "unusual_delivery_duration": 65
-    },
-    "category_accuracy": 0.9953333333333333
+    "false_positive_rate": 0.03144171779141104,
+    "false_negative_rate": 0.34183673469387754,
+    "roc_auc": 0.9299564917991737,
+    "precision_recall_auc": 0.7797306096355165,
+    "category_detection_recall": {
+      "abnormal_delivery_distance": {
+        "scenarios": 29,
+        "detected": 29,
+        "recall": 1.0
+      },
+      "abnormal_delivery_duration": {
+        "scenarios": 19,
+        "detected": 19,
+        "recall": 1.0
+      },
+      "delivery_delay": {
+        "scenarios": 34,
+        "detected": 5,
+        "recall": 0.14705882352941177
+      },
+      "gps_coordinate_jump": {
+        "scenarios": 21,
+        "detected": 4,
+        "recall": 0.19047619047619047
+      },
+      "repeated_delivery_failures": {
+        "scenarios": 24,
+        "detected": 24,
+        "recall": 1.0
+      },
+      "route_deviation": {
+        "scenarios": 27,
+        "detected": 9,
+        "recall": 0.3333333333333333
+      },
+      "suspicious_dispatch_pattern": {
+        "scenarios": 23,
+        "detected": 21,
+        "recall": 0.9130434782608695
+      },
+      "unusual_agent_activity": {
+        "scenarios": 19,
+        "detected": 18,
+        "recall": 0.9473684210526315
+      }
+    }
   },
   "test_was_used_for_model_selection": false,
-  "artifact_sha256": "f3985079913cf79888bb3eda9c288b56771ae321f9f46d204d1202bd15737198",
+  "artifact_sha256": "f5b9fc438955ab2cdd3a55330653b3a6ea513dc6ffd13e75bac2b53f4a524f80",
   "limitations": [
-    "All scenarios and labels are synthetic and cannot validate real SWERV performance.",
-    "Rule thresholds and scenario frequencies are illustrative assumptions.",
-    "The independent test is synthetic and generated separately from training and validation scenarios."
+    "All scenarios and labels are generated; reported metrics are not SWERV operational accuracy.",
+    "Scenario rates and thresholds are illustrative generator assumptions.",
+    "Each anomaly label is a generated scenario class; category recall is binary detector recall, not a predicted category classification score."
   ]
 }

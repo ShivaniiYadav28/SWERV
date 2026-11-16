@@ -106,8 +106,10 @@ The Admin-only anomaly APIs use the existing session cookie and the existing
 backend; it does not call the Python service.
 
 Set `ANOMALY_DETECTION_SERVICE_URL` in `backend/.env` to the FastAPI service
-base URL. The default is `http://127.0.0.1:8005`; see `.env.example` for the
-placeholder configuration.
+base URL and `ANOMALY_DETECTION_API_KEY` to the same random secret configured
+for the ML service. The default URL is `http://127.0.0.1:8005`; see
+`.env.example` for placeholder values. The key must be at least 32 characters
+and is sent only in a server-to-server Bearer header.
 
 Routes under `/api/anomaly-detection`:
 
@@ -122,11 +124,17 @@ Routes under `/api/anomaly-detection`:
   or `dismissed`.
 
 Real and demo alerts use the separate `anomaly_alerts` and
-`anomaly_demo_alerts` MongoDB collections. Detection only reads dispatch,
-activity, agent, and GPS data; review actions update only the selected alert.
-Demo scenarios are read from the isolated synthetic demo CSV. The anomaly model
-was trained on synthetic data, so its score is not validated against actual
-SWERV operations.
+`anomaly_demo_alerts` MongoDB collections. Real mode runs backend-local,
+explainable rules over selected dispatch activity and GPS fields; it does not
+call the ML service and its findings are not Isolation Forest predictions.
+Demo mode makes a bodyless `POST /analyze-demo` call with the Bearer key. The ML
+service loads its own generated demo scenarios; the backend sends no CSV,
+scenario feature rows, or operational records. Binary model candidates are
+saved to the demo collection as `unsupervised_outlier`. A generated scenario
+category, when present, is stored as evidence metadata and is not treated as a
+model-predicted category. Stable scenario identifiers keep repeated demo
+analysis from creating duplicate alerts. Review actions update only the
+selected alert.
 
 # Proof of Delivery (POD)
 

@@ -14,3 +14,11 @@ export function getAnomalyDetectionServiceUrl(): string {
   }
   return `${parsedUrl.origin}${parsedUrl.pathname.replace(/\/+$/, '')}`;
 }
+
+export function getAnomalyDetectionServiceApiKey(): string {
+  const apiKey = process.env.ANOMALY_DETECTION_API_KEY?.trim();
+  if (!apiKey || apiKey.length < 32) {
+    throw new HttpError(503, 'Anomaly detection service is not configured correctly.');
+  }
+  return apiKey;
+}

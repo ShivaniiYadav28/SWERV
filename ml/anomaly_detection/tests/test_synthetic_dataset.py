@@ -51,6 +51,30 @@ class SyntheticDatasetTests(unittest.TestCase):
         for category in CATEGORICAL_FEATURES:
             self.assertTrue(all(row[category] for row in rows))
 
+    def test_anomaly_labels_have_their_expected_feature_relationships(self) -> None:
+        rows = generate_dataset(8000, seed=7005, split_name="validation")
+        examples = {
+            row["anomaly_type"]: row
+            for row in rows
+            if row["anomaly_type"] != "normal"
+        }
+
+        self.assertGreater(examples["delivery_delay"]["delivery_delay_minutes"], 45)
+        self.assertGreater(examples["gps_coordinate_jump"]["implied_speed_kmh"], 160)
+        self.assertGreater(examples["route_deviation"]["route_deviation_ratio"], 2)
+        self.assertGreaterEqual(examples["repeated_delivery_failures"]["failed_delivery_attempts"], 3)
+        self.assertGreaterEqual(examples["repeated_delivery_failures"]["agent_failed_deliveries_7d"], 4)
+        self.assertGreaterEqual(examples["unusual_agent_activity"]["agent_activity_ratio"], 3)
+        self.assertGreaterEqual(examples["suspicious_dispatch_pattern"]["dispatch_burst_count_10m"], 9)
+        self.assertGreaterEqual(examples["suspicious_dispatch_pattern"]["dispatch_repeat_route_count_1h"], 5)
+        self.assertGreaterEqual(
+            examples["abnormal_delivery_duration"]["delivery_duration_minutes"]
+            / examples["abnormal_delivery_duration"]["expected_delivery_duration_minutes"],
+            1.8,
+        )
+        self.assertGreater(examples["abnormal_delivery_distance"]["delivery_distance_km"], 100)
+        self.assertGreater(examples["abnormal_delivery_distance"]["distance_to_expected_ratio"], 4)
+
     def test_features_have_valid_ranges_and_allow_expected_missing_gps_values(self) -> None:
         rows = generate_dataset(1500, seed=7004, split_name="train")
         categorical_values = {

@@ -17,7 +17,7 @@ export const alertReviewSchema = z.object({
 const anomalyTypes = [
   'gps_missing_coordinates', 'gps_invalid_coordinates', 'gps_invalid_timestamp', 'gps_invalid_timestamp_order',
   'gps_stale_submission', 'gps_stale_update', 'gps_implausible_jump', 'repeated_dispatch_reassignment',
-  'unusual_delivery_duration', 'invalid_status_transition',
+  'unusual_delivery_duration', 'invalid_status_transition', 'unsupervised_outlier',
 ] as const;
 
 export function parseAlertQuery(query: Record<string, unknown>) {

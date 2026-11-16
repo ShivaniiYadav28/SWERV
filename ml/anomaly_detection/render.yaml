@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: swerv-anomaly-detection
+    runtime: python
+    rootDir: ml/anomaly_detection
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn src.api:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: false
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.14
+      - key: ANOMALY_DETECTION_API_KEY
+        generateValue: true

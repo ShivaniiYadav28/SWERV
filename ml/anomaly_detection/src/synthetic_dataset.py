@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import random
 from collections import Counter
 from pathlib import Path
@@ -26,14 +27,27 @@ NUMERIC_FEATURES = [
     "gps_coordinates_valid",
     "gps_timestamps_valid",
     "gps_pair_available",
+    "expected_delivery_duration_minutes",
     "reassignment_count",
     "assignment_event_count",
     "activity_history_complete",
     "delivery_duration_minutes",
+    "delivery_delay_minutes",
+    "expected_delivery_distance_km",
+    "delivery_distance_km",
+    "planned_route_distance_km",
+    "actual_route_distance_km",
+    "route_deviation_ratio",
+    "distance_to_expected_ratio",
+    "failed_delivery_attempts",
+    "agent_failed_deliveries_7d",
     "status_event_count",
     "status_transition_valid",
     "agent_status_change_count",
+    "agent_activity_ratio",
     "agent_active_workload",
+    "dispatch_burst_count_10m",
+    "dispatch_repeat_route_count_1h",
     "dispatch_creation_hour",
     "data_quality_issue_count",
 ]
@@ -49,13 +63,15 @@ OUTPUT_COLUMNS = [
 ]
 
 ANOMALY_WEIGHTS = {
-    "normal": 0.72,
-    "gps_implausible_jump": 0.06,
-    "gps_invalid_coordinates": 0.04,
-    "gps_stale_update": 0.05,
-    "repeated_dispatch_reassignment": 0.05,
-    "unusual_delivery_duration": 0.05,
-    "invalid_status_transition": 0.03,
+    "normal": 0.88,
+    "delivery_delay": 0.015,
+    "gps_coordinate_jump": 0.015,
+    "route_deviation": 0.015,
+    "repeated_delivery_failures": 0.015,
+    "unusual_agent_activity": 0.015,
+    "suspicious_dispatch_pattern": 0.015,
+    "abnormal_delivery_duration": 0.015,
+    "abnormal_delivery_distance": 0.015,
 }
 
 PRIORITIES = ("standard", "express", "urgent")
@@ -68,11 +84,29 @@ def rounded(value: float, digits: int = 3) -> float:
 
 
 def make_base_scenario(rng: random.Random) -> dict[str, Any]:
-    """Create an ordinary dispatch with a mix of operational conditions."""
+    """Create an ordinary dispatch with related duration and distance values."""
+    priority = rng.choice(PRIORITIES)
+    package_category = rng.choice(PACKAGE_CATEGORIES)
+    vehicle_type = rng.choice(VEHICLE_TYPES)
+    expected_distance = rounded(rng.uniform(2.0, 35.0), 2)
+    package_time_allowance = 18.0 if package_category in {"heavy_goods", "fragile"} else 0.0
+    priority_time_adjustment = -8.0 if priority == "urgent" else 0.0
+    expected_duration = rounded(max(
+        15.0,
+        18.0 + expected_distance * 2.1 + package_time_allowance + priority_time_adjustment
+        + rng.uniform(-8.0, 12.0),
+    ), 2)
+    actual_duration = rounded(expected_duration * rng.triangular(0.65, 1.55, 0.98), 2)
+    planned_route_distance = rounded(expected_distance * rng.uniform(1.05, 1.4), 3)
+    actual_route_distance = rounded(planned_route_distance * rng.triangular(0.9, 1.35, 1.08), 3)
+    failed_attempts = rng.choices((0, 1, 2), weights=(0.86, 0.12, 0.02), k=1)[0]
+    agent_failed_deliveries = rng.choices((0, 1, 2, 3), weights=(0.68, 0.2, 0.09, 0.03), k=1)[0]
+    agent_status_changes = rng.randint(0, 6)
+    agent_activity_ratio = rounded(rng.triangular(0.45, 1.9, 1.0), 2)
     scenario: dict[str, Any] = {
-        "priority": rng.choice(PRIORITIES),
-        "package_category": rng.choice(PACKAGE_CATEGORIES),
-        "vehicle_type": rng.choice(VEHICLE_TYPES),
+        "priority": priority,
+        "package_category": package_category,
+        "vehicle_type": vehicle_type,
         "gps_distance_km": None,
         "gps_interval_minutes": None,
         "implied_speed_kmh": None,
@@ -82,21 +116,34 @@ def make_base_scenario(rng: random.Random) -> dict[str, Any]:
         "gps_coordinates_valid": None,
         "gps_timestamps_valid": None,
         "gps_pair_available": 0,
+        "expected_delivery_duration_minutes": expected_duration,
         "reassignment_count": 0,
         "assignment_event_count": 1,
         "activity_history_complete": rng.choice((0, 1)),
-        "delivery_duration_minutes": None,
-        "status_event_count": rng.randint(1, 5),
+        "delivery_duration_minutes": actual_duration,
+        "delivery_delay_minutes": rounded(max(0.0, actual_duration - expected_duration), 2),
+        "expected_delivery_distance_km": expected_distance,
+        "delivery_distance_km": actual_route_distance,
+        "planned_route_distance_km": planned_route_distance,
+        "actual_route_distance_km": actual_route_distance,
+        "route_deviation_ratio": rounded(actual_route_distance / planned_route_distance, 3),
+        "distance_to_expected_ratio": rounded(actual_route_distance / expected_distance, 3),
+        "failed_delivery_attempts": failed_attempts,
+        "agent_failed_deliveries_7d": agent_failed_deliveries,
+        "status_event_count": rng.randint(2, 5),
         "status_transition_valid": 1,
-        "agent_status_change_count": rng.randint(0, 4),
-        "agent_active_workload": rng.randint(0, 8),
+        "agent_status_change_count": agent_status_changes,
+        "agent_activity_ratio": agent_activity_ratio,
+        "agent_active_workload": rng.randint(0, 5),
+        "dispatch_burst_count_10m": rng.randint(1, 4),
+        "dispatch_repeat_route_count_1h": rng.randint(1, 3),
         "dispatch_creation_hour": rng.randrange(24),
         "data_quality_issue_count": 0,
     }
 
     if rng.random() < 0.88:
         interval_minutes = rounded(rng.uniform(1.0, 15.0), 2)
-        # Most movement is slow urban travel; the upper end includes borderline cases.
+        # Typical movement is urban-speed travel, with borderline cases retained.
         speed_kmh = rng.triangular(6.0, 138.0, 28.0)
         distance = speed_kmh * interval_minutes / 60
         accuracy = rng.choice([
@@ -119,20 +166,21 @@ def make_base_scenario(rng: random.Random) -> dict[str, Any]:
         if accuracy > 100:
             scenario["data_quality_issue_count"] += 1
     else:
-        # No pair means movement cannot be assessed; it is not automatically an anomaly.
+        # Missing GPS pairs prevent movement analysis; they are not anomalies by themselves.
         scenario["data_quality_issue_count"] += 1
-
-    scenario["delivery_duration_minutes"] = rounded(rng.gammavariate(3.0, 17.0), 2)
-    if rng.random() < 0.08:
-        # Borderline examples overlap with some long anomaly durations.
-        scenario["delivery_duration_minutes"] = rounded(rng.uniform(115.0, 185.0), 2)
 
     return scenario
 
 
 def add_anomaly(scenario: dict[str, Any], anomaly_type: str, rng: random.Random) -> None:
-    """Adjust a scenario to represent one documented synthetic anomaly."""
-    if anomaly_type == "gps_implausible_jump":
+    """Adjust a base scenario using related operational feature values."""
+    if anomaly_type == "delivery_delay":
+        expected = rounded(rng.uniform(25.0, 75.0), 2)
+        delay = rounded(rng.uniform(45.0, 180.0), 2)
+        scenario["expected_delivery_duration_minutes"] = expected
+        scenario["delivery_delay_minutes"] = delay
+        scenario["delivery_duration_minutes"] = rounded(expected + delay, 2)
+    elif anomaly_type == "gps_coordinate_jump":
         interval = rounded(rng.uniform(1.0, 6.0), 2)
         speed = rng.uniform(163.0, 245.0)
         scenario.update({
@@ -144,32 +192,49 @@ def add_anomaly(scenario: dict[str, Any], anomaly_type: str, rng: random.Random)
             "implied_speed_kmh": rounded(speed, 2),
             "gps_accuracy_meters": rounded(rng.uniform(5.0, 95.0), 1),
             "gps_freshness_minutes": rounded(rng.uniform(0.0, 8.0), 2),
+            "gps_reported_speed_kmh": rounded(rng.uniform(5.0, 70.0), 2),
         })
-        if rng.random() < 0.5:
-            scenario["gps_reported_speed_kmh"] = rounded(speed + rng.uniform(-25.0, 25.0), 2)
-        else:
-            scenario["gps_reported_speed_kmh"] = rounded(rng.uniform(5.0, 70.0), 2)
-    elif anomaly_type == "gps_invalid_coordinates":
-        scenario["gps_pair_available"] = 1
-        scenario["gps_coordinates_valid"] = 0
-        scenario["gps_timestamps_valid"] = 1
-        scenario["data_quality_issue_count"] += 1
-    elif anomaly_type == "gps_stale_update":
-        scenario["gps_pair_available"] = 1
-        scenario["gps_coordinates_valid"] = 1
-        scenario["gps_timestamps_valid"] = 1
-        scenario["gps_freshness_minutes"] = rounded(rng.uniform(10.1, 90.0), 2)
-        scenario["data_quality_issue_count"] += 1
-    elif anomaly_type == "repeated_dispatch_reassignment":
-        scenario["reassignment_count"] = rng.randint(2, 5)
-        scenario["assignment_event_count"] = scenario["reassignment_count"] + 1
-        scenario["activity_history_complete"] = 1
-    elif anomaly_type == "unusual_delivery_duration":
-        scenario["delivery_duration_minutes"] = rounded(rng.uniform(150.0, 420.0), 2)
-    elif anomaly_type == "invalid_status_transition":
-        scenario["status_transition_valid"] = 0
-        scenario["status_event_count"] = rng.randint(1, 5)
-        scenario["activity_history_complete"] = rng.choice((0, 1))
+    elif anomaly_type == "route_deviation":
+        planned = rounded(rng.uniform(2.0, 15.0), 2)
+        actual = rounded(planned * rng.uniform(2.2, 3.8), 3)
+        expected_distance = rounded(planned / 1.2, 2)
+        scenario.update({
+            "planned_route_distance_km": planned,
+            "actual_route_distance_km": actual,
+            "delivery_distance_km": actual,
+            "route_deviation_ratio": rounded(actual / planned, 3),
+            "expected_delivery_distance_km": expected_distance,
+            "distance_to_expected_ratio": rounded(actual / expected_distance, 3),
+        })
+    elif anomaly_type == "repeated_delivery_failures":
+        scenario["failed_delivery_attempts"] = rng.randint(3, 6)
+        scenario["agent_failed_deliveries_7d"] = rng.randint(4, 12)
+    elif anomaly_type == "unusual_agent_activity":
+        scenario["agent_status_change_count"] = rng.randint(18, 40)
+        scenario["agent_activity_ratio"] = rounded(rng.uniform(3.0, 9.0), 2)
+        scenario["agent_active_workload"] = rng.randint(8, 18)
+    elif anomaly_type == "suspicious_dispatch_pattern":
+        scenario["dispatch_burst_count_10m"] = rng.randint(9, 24)
+        scenario["dispatch_repeat_route_count_1h"] = rng.randint(5, 14)
+        scenario["priority"] = "urgent"
+    elif anomaly_type == "abnormal_delivery_duration":
+        expected = rounded(rng.uniform(180.0, 360.0), 2)
+        duration = rounded(expected * rng.uniform(1.8, 3.0), 2)
+        scenario["expected_delivery_duration_minutes"] = expected
+        scenario["delivery_duration_minutes"] = duration
+        scenario["delivery_delay_minutes"] = rounded(duration - expected, 2)
+    elif anomaly_type == "abnormal_delivery_distance":
+        expected = rounded(rng.uniform(4.0, 35.0), 2)
+        distance = rounded(rng.uniform(150.0, 420.0), 2)
+        planned = rounded(expected * 1.2, 3)
+        scenario.update({
+            "expected_delivery_distance_km": expected,
+            "planned_route_distance_km": planned,
+            "actual_route_distance_km": distance,
+            "delivery_distance_km": distance,
+            "route_deviation_ratio": rounded(distance / planned, 3),
+            "distance_to_expected_ratio": rounded(distance / expected, 3),
+        })
     else:
         raise ValueError(f"Unsupported synthetic anomaly type: {anomaly_type}")
 
@@ -203,7 +268,7 @@ def generate_dataset(size: int, seed: int, split_name: str) -> list[dict[str, An
 
 
 def validate_dataset(rows: list[dict[str, Any]], split_name: str) -> None:
-    """Check labels, values, and scenario identifiers before saving."""
+    """Check schema, provenance, labels, and feature relationships before saving."""
     if not rows:
         raise ValueError(f"The {split_name} dataset cannot be empty.")
     ids = [row.get("scenario_id") for row in rows]
@@ -214,15 +279,40 @@ def validate_dataset(rows: list[dict[str, Any]], split_name: str) -> None:
             raise ValueError("A synthetic row does not match the documented output columns.")
         if row["data_source"] != DATA_SOURCE or row["dataset_split"] != split_name:
             raise ValueError("Synthetic provenance or split label is invalid.")
+        if row["anomaly_type"] not in ANOMALY_WEIGHTS:
+            raise ValueError("A scenario has an unsupported anomaly category.")
         if row["is_anomaly"] not in (0, 1):
             raise ValueError("Anomaly labels must be zero or one.")
-        expected_label = int(row["anomaly_type"] != NORMAL_LABEL)
-        if row["is_anomaly"] != expected_label:
+        if row["is_anomaly"] != int(row["anomaly_type"] != NORMAL_LABEL):
             raise ValueError("Anomaly label does not match its anomaly category.")
-        if row["reassignment_count"] < 0 or row["delivery_duration_minutes"] < 0:
-            raise ValueError("Counts and duration features cannot be negative.")
-        if row["gps_pair_available"] and row["gps_distance_km"] is not None and row["gps_distance_km"] < 0:
-            raise ValueError("GPS distance cannot be negative.")
+        for column in NUMERIC_FEATURES:
+            value = row[column]
+            if value is not None and (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or value < 0
+            ):
+                raise ValueError(f"Numeric feature {column} must be finite and non-negative or null.")
+        if row["priority"] not in PRIORITIES:
+            raise ValueError("A scenario has an unsupported priority.")
+        if row["package_category"] not in PACKAGE_CATEGORIES:
+            raise ValueError("A scenario has an unsupported package category.")
+        if row["vehicle_type"] not in VEHICLE_TYPES:
+            raise ValueError("A scenario has an unsupported vehicle type.")
+        if row["gps_pair_available"] not in (0, 1):
+            raise ValueError("GPS pair availability must be binary.")
+        if row["gps_pair_available"] == 0 and row["gps_distance_km"] is not None:
+            raise ValueError("A missing GPS pair cannot have a movement distance.")
+        expected_delay = max(0.0, row["delivery_duration_minutes"] - row["expected_delivery_duration_minutes"])
+        if abs(row["delivery_delay_minutes"] - expected_delay) > 0.02:
+            raise ValueError("Delivery delay must match actual duration minus expected duration.")
+        if row["planned_route_distance_km"] <= 0 or row["expected_delivery_distance_km"] <= 0:
+            raise ValueError("Expected and planned route distances must be positive.")
+        if abs(row["route_deviation_ratio"] - row["actual_route_distance_km"] / row["planned_route_distance_km"]) > 0.002:
+            raise ValueError("Route deviation ratio does not match planned and actual route distances.")
+        if abs(row["distance_to_expected_ratio"] - row["delivery_distance_km"] / row["expected_delivery_distance_km"]) > 0.002:
+            raise ValueError("Distance ratio does not match delivered and expected distances.")
 
 
 def generate_splits(
@@ -230,15 +320,15 @@ def generate_splits(
     validation_size: int = 1500,
     test_size: int = 1500,
     demo_size: int = 700,
-    train_seed: int = 41001,
-    validation_seed: int = 41002,
-    test_seed: int = 41003,
-    demo_seed: int = 41004,
+    train_seed: int = 41005,
+    validation_seed: int = 41006,
+    test_seed: int = 41007,
+    demo_seed: int = 41008,
 ) -> dict[str, list[dict[str, Any]]]:
     """Generate independent scenario IDs and independently seeded splits."""
     seeds = (train_seed, validation_seed, test_seed, demo_seed)
     if len(set(seeds)) != len(seeds):
-        raise ValueError("Training, validation, and test seeds must be different.")
+        raise ValueError("Training, validation, test, and demo seeds must be different.")
     splits = {
         "train": generate_dataset(train_size, train_seed, "train"),
         "validation": generate_dataset(validation_size, validation_seed, "validation"),
@@ -286,9 +376,9 @@ def write_splits(
         "anomaly_weights": ANOMALY_WEIGHTS,
         "summary": summary,
         "generation_notes": [
-            "Synthetic operational ranges are illustrative, not learned from SWERV history.",
-            "Normal rows include borderline durations, GPS accuracy, workloads, priorities, and missing GPS pairs.",
-            "Anomaly categories are labels for synthetic scenarios, not confirmed SWERV incidents.",
+            "Operational ranges and relationships are illustrative assumptions, not learned from SWERV records.",
+            "Duration and delay derive from expected delivery time; distance ratios derive from expected and planned routes.",
+            "Normal rows include borderline values and missing GPS pairs; generated labels are not confirmed SWERV incidents.",
         ],
     }
     metadata_path = output_directory / "synthetic_dataset_metadata.json"
