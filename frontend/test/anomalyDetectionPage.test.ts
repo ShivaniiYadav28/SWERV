@@ -322,6 +322,12 @@ describe('AI Anomaly Detection page', () => {
     await flushEffects()
 
     const text = container.textContent ?? ''
+    const modeButtons = container.querySelectorAll('.anomaly-mode-switch button')
+    assert.equal(container.querySelector('.anomaly-notice'), null)
+    assert.equal(modeButtons.length, 2)
+    assert.equal(modeButtons[0].textContent, 'Real Data')
+    assert.equal(modeButtons[0].getAttribute('aria-pressed'), 'true')
+    assert.equal(modeButtons[1].getAttribute('aria-pressed'), 'false')
     assert.match(text, /Rule-based operational findings/)
     assert.match(text, /backend rules/i)
     assert.match(text, /invalid status transition/)
@@ -340,8 +346,12 @@ describe('AI Anomaly Detection page', () => {
     await click(container, 'Details')
 
     const text = container.textContent ?? ''
+    const modeButtons = container.querySelectorAll('.anomaly-mode-switch button')
+    assert.equal(container.querySelector('.anomaly-notice'), null)
+    assert.equal(modeButtons[0].getAttribute('aria-pressed'), 'false')
+    assert.equal(modeButtons[1].getAttribute('aria-pressed'), 'true')
     assert.match(text, /Anomaly Detection Demo/)
-    assert.match(text, /Illustrative scenarios — these are not confirmed operational incidents\./)
+    assert.doesNotMatch(text, /Illustrative scenarios — these are not confirmed operational incidents\./)
     assert.match(text, /unsupervised_outlier/)
     assert.match(text, /0\.9200/)
     assert.match(text, /demo-route-1/)

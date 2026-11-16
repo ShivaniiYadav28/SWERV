@@ -1,8 +1,5 @@
 .anomaly-content { max-width: 1440px; }
-.anomaly-notice { display:flex; gap:12px; align-items:flex-start; padding:14px 16px; border:1px solid #765341; border-radius:9px; background:#2b211d; color:#efc39d; margin-bottom:14px; }
-.anomaly-notice svg { flex:0 0 auto; margin-top:2px; }
-.anomaly-notice-real { border-color:#685148; background:#29211f; color:#e4b183; }
-.anomaly-notice p,.anomaly-controls p,.anomaly-toolbar p { margin:5px 0 0; color:#aaa3aa; font-size:11px; line-height:1.5; }
+.anomaly-controls p,.anomaly-toolbar p { margin:5px 0 0; color:#aaa3aa; font-size:11px; line-height:1.5; }
 .anomaly-controls { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:15px; margin-bottom:6px; }
 .anomaly-controls > div > strong { color:#f0e9ec; font-size:12px; }
 .anomaly-controls label { display:grid; gap:5px; color:#aaa3aa; font-size:10px; }

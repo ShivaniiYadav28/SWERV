@@ -230,15 +230,6 @@ export function AnomalyDetectionPage() {
           </button>
         </section>
 
-        <section className={`anomaly-notice ${mode === 'real' ? 'anomaly-notice-real' : ''}`} role="status">
-          <AlertTriangle size={18} aria-hidden="true" />
-          <div>
-            <strong>{mode === 'real' ? 'Rule-based operational findings' : 'Anomaly Detection Demo'}</strong>
-            <p>{mode === 'real'
-              ? 'Real Data Mode uses backend rules for GPS quality, lifecycle transitions, reassignment completeness, and delivery duration. No ML score or confidence is used.'
-              : 'Illustrative scenarios — these are not confirmed operational incidents. Scenario labels provide context and are not model predictions.'}</p>
-          </div>
-        </section>
         {success && <div className="admin-users-success" role="status"><span>{success}</span><button type="button" aria-label="Dismiss" onClick={() => setSuccess('')}><X size={15} /></button></div>}
         {error && <div className="admin-users-alert" role="alert"><span>{error}</span><button type="button" aria-label="Dismiss" onClick={() => setError('')}><X size={15} /></button></div>}
 
