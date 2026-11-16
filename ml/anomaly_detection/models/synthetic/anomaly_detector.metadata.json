@@ -1,13 +1,104 @@
 {
   "data_source": "synthetic",
   "synthetic_only": true,
+  "real_world_accuracy_claim": false,
   "model_selection_used_test_data": false,
+  "model_name": "isolation_forest",
+  "selected_model": "isolation_forest",
+  "model_version": "isolation_forest-synthetic-b3c24dbf05ff",
   "training_rows": 7000,
   "validation_rows": 1500,
   "independent_test_rows_held_until_selection": 1500,
-  "selected_model": "random_forest",
-  "model_version": "random_forest-synthetic-42981f2b88fd",
-  "selection_reason": "Selected by validation F1 among models at or below a 10% false-positive rate; ties favor recall, precision, and then lower false-positive rate.",
+  "validation_contamination": 0.11733333333333333,
+  "contamination_selection_rule": "Observed anomaly prevalence in the validation split only.",
+  "decision_threshold": 0.001656785626310997,
+  "threshold_selection_rule": "Best validation F1 with false-positive rate at or below 10%; ties favor recall then precision.",
+  "false_positive_target": 0.1,
+  "native_validation_metrics_at_zero_score": {
+    "threshold": 0.0,
+    "precision": 0.7549668874172185,
+    "recall": 0.6477272727272727,
+    "f1": 0.6972477064220184,
+    "accuracy": 0.934,
+    "confusion_matrix": [
+      [
+        1287,
+        37
+      ],
+      [
+        62,
+        114
+      ]
+    ],
+    "false_positive_rate": 0.027945619335347432,
+    "false_negative_rate": 0.3522727272727273,
+    "roc_auc": 0.9297325597363362,
+    "precision_recall_auc": 0.7796712931170645
+  },
+  "validation_metrics": {
+    "threshold": 0.001656785626310997,
+    "precision": 0.7972027972027972,
+    "recall": 0.6477272727272727,
+    "f1": 0.7147335423197492,
+    "accuracy": 0.9393333333333334,
+    "confusion_matrix": [
+      [
+        1295,
+        29
+      ],
+      [
+        62,
+        114
+      ]
+    ],
+    "false_positive_rate": 0.02190332326283988,
+    "false_negative_rate": 0.3522727272727273,
+    "roc_auc": 0.9297325597363362,
+    "precision_recall_auc": 0.7796712931170645,
+    "threshold_selection_rule": "Best validation F1 with false-positive rate at or below 10%; ties favor recall then precision.",
+    "category_detection_recall": {
+      "abnormal_delivery_distance": {
+        "scenarios": 20,
+        "detected": 20,
+        "recall": 1.0
+      },
+      "abnormal_delivery_duration": {
+        "scenarios": 22,
+        "detected": 22,
+        "recall": 1.0
+      },
+      "delivery_delay": {
+        "scenarios": 31,
+        "detected": 6,
+        "recall": 0.1935483870967742
+      },
+      "gps_coordinate_jump": {
+        "scenarios": 27,
+        "detected": 5,
+        "recall": 0.18518518518518517
+      },
+      "repeated_delivery_failures": {
+        "scenarios": 13,
+        "detected": 13,
+        "recall": 1.0
+      },
+      "route_deviation": {
+        "scenarios": 23,
+        "detected": 10,
+        "recall": 0.43478260869565216
+      },
+      "suspicious_dispatch_pattern": {
+        "scenarios": 23,
+        "detected": 21,
+        "recall": 0.9130434782608695
+      },
+      "unusual_agent_activity": {
+        "scenarios": 17,
+        "detected": 17,
+        "recall": 1.0
+      }
+    }
+  },
   "features": [
     "gps_distance_km",
     "gps_interval_minutes",
@@ -18,14 +109,27 @@
     "gps_coordinates_valid",
     "gps_timestamps_valid",
     "gps_pair_available",
+    "expected_delivery_duration_minutes",
     "reassignment_count",
     "assignment_event_count",
     "activity_history_complete",
     "delivery_duration_minutes",
+    "delivery_delay_minutes",
+    "expected_delivery_distance_km",
+    "delivery_distance_km",
+    "planned_route_distance_km",
+    "actual_route_distance_km",
+    "route_deviation_ratio",
+    "distance_to_expected_ratio",
+    "failed_delivery_attempts",
+    "agent_failed_deliveries_7d",
     "status_event_count",
     "status_transition_valid",
     "agent_status_change_count",
+    "agent_activity_ratio",
     "agent_active_workload",
+    "dispatch_burst_count_10m",
+    "dispatch_repeat_route_count_1h",
     "dispatch_creation_hour",
     "data_quality_issue_count",
     "priority",
@@ -33,13 +137,12 @@
     "vehicle_type"
   ],
   "preprocessing_fit_on": "training split only",
-  "unsupervised_training_rows": 5145,
-  "unsupervised_training_data": "normal training scenarios only",
+  "isolation_forest_fit_labels_used": false,
   "random_seed": 9301,
-  "artifact_sha256": "f3985079913cf79888bb3eda9c288b56771ae321f9f46d204d1202bd15737198",
+  "artifact_sha256": "f5b9fc438955ab2cdd3a55330653b3a6ea513dc6ffd13e75bac2b53f4a524f80",
   "limitations": [
-    "All scenarios and labels are synthetic and cannot validate real SWERV performance.",
-    "Rule thresholds and scenario frequencies are illustrative assumptions.",
-    "The independent test is synthetic and generated separately from training and validation scenarios."
+    "All scenarios and labels are generated; reported metrics are not SWERV operational accuracy.",
+    "Scenario rates and thresholds are illustrative generator assumptions.",
+    "Each anomaly label is a generated scenario class; category recall is binary detector recall, not a predicted category classification score."
   ]
 }
