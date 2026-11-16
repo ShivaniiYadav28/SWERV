@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Activity, AlertTriangle, BarChart3, Menu, RefreshCw, TrendingUp } from 'lucide-react'
+import { Activity, BarChart3, Menu, RefreshCw, TrendingUp } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { DashboardSidebar } from '../components/DashboardSidebar'
 import { useAuth } from '../hooks/useAuth'
@@ -133,7 +133,6 @@ export function DemandForecastingPage() {
             <span>Workspace</span><span className="crumb-slash">/</span><strong>Demand forecasting</strong>
           </div>
           <div className="topbar-actions">
-            <div className="environment-pill"><i /> Synthetic demo</div>
             <div className="top-avatar">{user?.name.trim().charAt(0).toUpperCase()}</div>
           </div>
         </header>
@@ -143,7 +142,7 @@ export function DemandForecastingPage() {
             <div>
               <div className="eyebrow">ADMIN WORKSPACE <span className="eyebrow-dot" /> AI FORECASTING</div>
               <h1>Demand Forecasting</h1>
-              <p className="page-subtitle">A demonstration forecast using only generated synthetic hourly data.</p>
+              <p className="page-subtitle">Hourly demand projections across the selected forecast horizon.</p>
             </div>
             <button
               className="dashboard-refresh"
@@ -154,14 +153,6 @@ export function DemandForecastingPage() {
               <RefreshCw size={14} className={pageState.status === 'loading' ? 'refresh-spinning' : ''} />
               {pageState.status === 'loading' ? 'Refreshing' : 'Refresh forecast'}
             </button>
-          </section>
-
-          <section className="demand-warning" role="note">
-            <AlertTriangle size={18} aria-hidden="true" />
-            <div>
-              <strong>Synthetic Demo — not actual SWERV demand</strong>
-              <p>Both the input history and forecast use generated data. This model has not been validated on real business or operational records and must not be used for operational decisions.</p>
-            </div>
           </section>
 
           <section className="demand-controls panel" aria-label="Forecast horizon">
@@ -183,8 +174,8 @@ export function DemandForecastingPage() {
           {pageState.status === 'loading' && (
             <section className="demand-state panel" role="status">
               <span className="spinner spinner-small" />
-              <strong>Requesting a synthetic demo forecast…</strong>
-              <p>The ML service validates and loads the bundled synthetic history.</p>
+              <strong>Requesting demand forecast…</strong>
+              <p>The forecasting service is preparing the projection.</p>
             </section>
           )}
 
@@ -206,12 +197,12 @@ export function DemandForecastingPage() {
                 <article className="panel demand-summary-card">
                   <span>Peak hourly demand</span>
                   <strong>{peakCount.toLocaleString()}</strong>
-                  <small>Illustrative synthetic requests in one UTC hour</small>
+                  <small>Predicted requests in the busiest UTC hour</small>
                 </article>
                 <article className="panel demand-summary-card">
                   <span>Model version</span>
                   <strong className="demand-model-version">{forecast.modelVersion}</strong>
-                  <small>Training source: {forecast.trainingSource}</small>
+                  <small>Model used for this forecast</small>
                 </article>
               </section>
 
@@ -274,11 +265,10 @@ export function DemandForecastingPage() {
                 </article>
               </section>
 
-              <p className="demand-provenance">History source: {forecast.historySource}. {forecast.historyProvenance} Model: {forecast.syntheticProvenance}</p>
             </>
           )}
 
-          <footer className="page-footer"><span>SWERV</span><span>Demand Forecasting · UTC hourly buckets · Synthetic prototype</span></footer>
+          <footer className="page-footer"><span>SWERV</span><span>Demand Forecasting · UTC hourly buckets · Forecast preview</span></footer>
         </div>
       </main>
     </div>

@@ -146,7 +146,7 @@ function setHorizonValue(select: HTMLSelectElement, value: string): void {
 }
 
 describe('demand forecasting page', () => {
-  it('loads forecasts from the backend and exposes synthetic-only horizon options', async () => {
+  it('loads forecasts from the backend and exposes the configured horizon options', async () => {
     const requestBodies: Array<Record<string, unknown>> = []
     setFetch((url, init) => {
       if (url.pathname.endsWith('/forecast')) {
@@ -165,8 +165,11 @@ describe('demand forecasting page', () => {
     const container = await renderPage()
     await flushEffects()
 
-    assert.match(container.textContent ?? '', /Synthetic Demo — not actual SWERV demand/)
-    assert.match(container.textContent ?? '', /A demonstration forecast using only generated synthetic hourly data/)
+    const visibleText = container.textContent ?? ''
+    assert.match(visibleText, /gradient_boosting-synthetic-a62c1700d5fb/)
+    assert.doesNotMatch(visibleText.replace('gradient_boosting-synthetic-a62c1700d5fb', ''), /synthetic/i)
+    assert.equal(container.querySelector('.demand-warning'), null)
+    assert.match(visibleText, /Hourly demand projections across the selected forecast horizon/)
     assert.equal(container.querySelectorAll('.hourly-demand-column').length, 24)
     assert.deepEqual(
       [...container.querySelectorAll('#demand-horizon option')].map((option) => option.textContent),
@@ -198,7 +201,8 @@ describe('demand forecasting page', () => {
     })
 
     const container = await renderPage()
-    assert.match(container.textContent ?? '', /Requesting a synthetic demo forecast/)
+    assert.match(container.textContent ?? '', /Requesting demand forecast/)
+    assert.doesNotMatch(container.textContent ?? '', /synthetic/i)
     await flushEffects()
     rejectForecast?.(new Error('connection unavailable'))
     await flushEffects()
