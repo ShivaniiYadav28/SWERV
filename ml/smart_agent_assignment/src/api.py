@@ -30,7 +30,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(
     title="SWERV Smart Agent Assignment ML Service",
     version="0.1.0",
-    description="Ranks already eligible agent candidates using a synthetic-data prototype model.",
+    description="Ranks eligible agent candidates using a machine-learning recommendation model.",
     lifespan=lifespan,
 )
 
@@ -116,9 +116,6 @@ def health(service: AgentRecommendationModel = Depends(get_model_service)) -> di
     return {
         "status": "ok",
         "model_available": available,
-        "model_version": service.model_version if available else None,
-        "training_source": "synthetic" if available else None,
-        "provenance_note": "Synthetic prototype; real-world accuracy is not validated." if available else None,
     }
 
 

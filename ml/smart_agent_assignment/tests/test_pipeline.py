@@ -115,6 +115,15 @@ class SyntheticCandidatePipelineTests(unittest.TestCase):
     def tearDown(self) -> None:
         app.dependency_overrides.clear()
 
+    def test_openapi_description_uses_public_recommendation_wording(self) -> None:
+        info = app.openapi()["info"]
+        self.assertEqual(
+            info["description"],
+            "Ranks eligible agent candidates using a machine-learning recommendation model.",
+        )
+        self.assertNotIn("synthetic", info["title"].lower())
+        self.assertNotIn("synthetic", info["description"].lower())
+
     def test_generation_has_ten_thousand_labeled_unique_candidates(self) -> None:
         dataset = generate_dataset()
         self.assertEqual(len(dataset), 10_000)
@@ -289,8 +298,13 @@ class SyntheticCandidatePipelineTests(unittest.TestCase):
             app.dependency_overrides[get_model_service] = lambda: service
 
             health = call_api("GET", "/health")
-            self.assertTrue(health.json()["model_available"])
-            self.assertEqual(health.json()["training_source"], "synthetic")
+            health_body = health.json()
+            self.assertEqual(
+                health_body,
+                {"status": "ok", "model_available": True},
+            )
+            for field in ("model_version", "training_source", "provenance_note"):
+                self.assertNotIn(field, health_body)
             response = call_api("POST", "/predict", json=VALID_REQUEST)
             self.assertEqual(response.status_code, 200)
             body = response.json()
